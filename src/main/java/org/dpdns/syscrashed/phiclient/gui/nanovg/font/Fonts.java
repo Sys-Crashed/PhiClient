@@ -7,8 +7,8 @@ import java.util.List;
 /**
  * 界面字体表。
  *
- * <p>对齐原 SoarClient 的 {@code management.nanovg.font.Fonts}，但只使用 PhiClient 自己的字体：
- * 「Source Han Sans &amp; Saira Hybrid」（思源黑体 + Saira 的混合字体），不与 Soar 共用 MiSans。
+ * <p>只使用 PhiClient 自己的字体：
+ * 「Source Han Sans &amp; Saira Hybrid」（思源黑体 + Saira 的混合字体）。
  */
 public final class Fonts {
 

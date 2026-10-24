@@ -9,7 +9,7 @@ import org.lwjgl.nanovg.NanoVG;
 /**
  * 把 {@link Fonts} 里的字体注册进 NanoVG 上下文。
  *
- * <p>对齐原 SoarClient 的 {@code management.nanovg.font.FontManager}。
+ * <p>把 {@link Fonts} 里的字体注册进 NanoVG 上下文。
  */
 public final class FontManager {
 

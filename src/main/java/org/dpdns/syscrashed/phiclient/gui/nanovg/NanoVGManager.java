@@ -18,7 +18,7 @@ import net.minecraft.client.gui.ScaledResolution;
 /**
  * NanoVG 上下文的生命周期、GL 状态保护与常用绘制封装。
  *
- * <p>整体对齐原 SoarClient 的 {@code management.nanovg.NanoVGManager}，但针对 MC 1.8.9 做了两处关键修正：
+ * <p>针对 MC 1.8.9 做了两处关键修正：
  *
  * <ol>
  *   <li><b>懒创建上下文</b>（{@link #ensureReady()}）：不再在 {@code Minecraft#startGame} 期间创建。
@@ -29,7 +29,7 @@ import net.minecraft.client.gui.ScaledResolution;
  *       所以每帧绘制结束后都要把 {@code glUseProgram} 还原回原值，否则 MC 后续的固定管线渲染会串味。</li>
  * </ol>
  *
- * <p>其余细节与 Soar 一致：使用 GL2 后端（MC 1.8.9 的上下文是 GL2 级别），
+ * <p>其余细节：使用 GL2 后端（MC 1.8.9 的上下文是 GL2 级别），
  * 绘制尺寸按物理像素（displayWidth / displayHeight），再通过 {@code nvgScale} 缩放，
  * 业务代码就可以直接用 GuiScreen 的 {@code width / height} 坐标系。
  */
@@ -242,7 +242,7 @@ public final class NanoVGManager {
      * 竖直线性渐变的圆角矩形（主色块 / 侧栏高亮用）。
      *
      * <p>注意：这里复用一个<b>长期持有</b>的 NVGPaint，<b>不</b>调用 {@code free()}。
-     * 原 SoarClient 也是这么写的（{@code NVGPaint.create()} 之后从不释放）。
+     * {@code NVGPaint.create()} 之后从不释放。
      * 原因：LWJGL 3 的 Struct 体系里 native 内存与它镜像用的 direct buffer 生命周期是绑定的，
      * 手动 {@code free()} 之后这块内存会被释放两次 → Windows 上直接变成堆损坏
      * （{@code 0xC0000374 / STATUS_HEAP_CORRUPTION}），表现为「一开界面就崩」。

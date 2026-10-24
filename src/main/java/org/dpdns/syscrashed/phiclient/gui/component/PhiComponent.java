@@ -6,7 +6,7 @@ import org.dpdns.syscrashed.phiclient.utils.mouse.MouseUtils;
 /**
  * 界面组件基类。
  *
- * <p>对齐原 SoarClient 的 {@code me.eldodebug.soar.ui.comp.Comp}：组件有自己的位置与尺寸，
+ * <p>组件有自己的位置与尺寸，
  * 负责绘制与鼠标交互；父级（分类 / 界面）只负责布局与事件分发。
  */
 public abstract class PhiComponent {

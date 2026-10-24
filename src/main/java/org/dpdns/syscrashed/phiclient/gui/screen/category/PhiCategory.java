@@ -9,7 +9,7 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 /**
  * 界面分类（侧栏里的每一项）。
  *
- * <p>对齐原 SoarClient 的 {@code gui.modmenu.category.Category}：分类持有自己的组件列表，
+ * <p>分类持有自己的组件列表，
  * 负责把组件布局到内容区并分发交互；切换分类时由界面负责淡入淡出。
  */
 public abstract class PhiCategory {

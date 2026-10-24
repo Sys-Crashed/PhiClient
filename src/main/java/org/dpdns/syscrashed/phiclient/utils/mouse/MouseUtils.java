@@ -3,7 +3,7 @@ package org.dpdns.syscrashed.phiclient.utils.mouse;
 /**
  * 鼠标命中判定工具。
  *
- * <p>对齐原 SoarClient 的 {@code me.eldodebug.soar.utils.mouse.MouseUtils}。
+ * <p>提供鼠标位置、命中判定等界面交互常用工具。
  */
 public final class MouseUtils {
 

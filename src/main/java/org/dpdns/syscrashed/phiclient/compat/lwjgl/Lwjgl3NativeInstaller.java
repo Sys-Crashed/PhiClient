@@ -17,7 +17,7 @@ import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
  * 两个 native 库混用 → 堆损坏（Windows 上表现为退出码 {@code 0xC0000374 / STATUS_HEAP_CORRUPTION}）。
  *
  * <p><b>解法</b>：把 LWJGL 3 自己的原生库（{@code lwjgl.dll} + {@code lwjgl_nanovg.dll}，
- * 来自 {@code libs/lwjgl-soar-natives.jar}）解到临时目录，再把这个目录<b>前置</b>到
+ * 来自 {@code libs/lwjgl-phi-natives.jar}）解到临时目录，再把这个目录<b>前置</b>到
  * {@code java.library.path}：
  * <ul>
  *   <li>LWJGL 3 → 命中我们解出来的正确 dll ✓</li>

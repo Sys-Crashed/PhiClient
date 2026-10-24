@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 /**
  * 一个 NanoVG 字体（TTF）。
  *
- * <p>对齐原 SoarClient 的 {@code management.nanovg.font.Font}，但资源用 classpath 路径
+ * <p>资源用 classpath 路径
  * （而不是 ResourceLocation）—— 原因见 {@link org.dpdns.syscrashed.phiclient.utils.ResourceUtils}。
  */
 public final class Font {

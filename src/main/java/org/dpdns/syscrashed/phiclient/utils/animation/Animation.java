@@ -5,8 +5,7 @@ import org.dpdns.syscrashed.phiclient.utils.TimerUtils;
 /**
  * 通用补间动画：把「时间进度」映射成 0..1 的进度，再交给子类做缓动。
  *
- * <p>对齐原 SoarClient 的 {@code utils.animation.normal.Animation}，但把曲线参数从「毫秒」
- * 改成归一化的 0..1（{@code t}），语义更直观、也更容易写不同的缓动。
+ * <p>把曲线参数从「毫秒」改成归一化的 0..1（{@code t}），语义更直观、也更容易写不同的缓动。
  *
  * <p>用法：
  * <pre>

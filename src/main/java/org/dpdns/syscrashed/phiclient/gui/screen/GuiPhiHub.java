@@ -28,7 +28,7 @@ import net.minecraft.client.settings.KeyBinding;
 /**
  * PhiClient 的中心界面 —— 按右 Shift 打开。
  *
- * <p>架构完全对齐原 SoarClient 的 {@code gui.modmenu.GuiModMenu}：
+ * <p>架构：
  * <ul>
  *   <li>背景是 MC shader 管线做的模糊（{@code BlurRenderer}）；</li>
  *   <li>面板、侧栏、卡片、文字全部由 NanoVG 自绘 —— <b>不</b>用 MC 的 FontRenderer，

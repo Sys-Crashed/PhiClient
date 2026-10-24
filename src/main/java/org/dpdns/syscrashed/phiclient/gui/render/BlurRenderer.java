@@ -17,9 +17,9 @@ import net.minecraft.util.ResourceLocation;
 /**
  * 背景虚化：用 Minecraft 自带的 shader 管线做一次「水平 + 垂直」两趟高斯模糊。
  *
- * <p>完全对齐原 SoarClient 的 {@code utils.render.BlurUtils}：
+ * <p>实现思路：
  * <ul>
- *   <li>shader 是 {@code assets/minecraft/shaders/post/blurArea.json}（仓库里已随 Soar 资源一起保留下来），
+ *   <li>shader 是 {@code assets/minecraft/shaders/post/blurArea.json}（仓库里随资源一起保留下来），
  *       内部两个 pass 分别做横向与纵向模糊；</li>
  *   <li>{@code BlurXY / BlurCoord} 决定模糊区域，{@code Radius} 决定强度；
  *       这几个 uniform 在 1.8.9 的 ShaderGroup 里没有公开 setter，所以通过
@@ -75,7 +75,7 @@ public final class BlurRenderer {
                 //   1) resetProjectionMatrix() 建出投影矩阵；
                 //   2) 把投影矩阵分发给每一个 shader。
                 // 少了这一步，shader 里的 ProjMat uniform 会拿到 null 的 Matrix4f，
-                // Shader.loadShader 里直接抛 NullPointerException（Soar 的 BlurUtils 同样有这一步）。
+                // Shader.loadShader 里直接抛 NullPointerException（这里同样必须走这步）。
                 this.shaderGroup.createBindFramebuffers(this.mc.displayWidth, this.mc.displayHeight);
 
                 this.lastWidth = this.mc.displayWidth;
@@ -94,7 +94,7 @@ public final class BlurRenderer {
     }
 
     /**
-     * 设置两个 pass 的 uniform。与 Soar 的取值完全一致：
+     * 设置两个 pass 的 uniform：
      * BlurXY 是模糊区域的起点，BlurCoord 是区域大小（都按「半分辨率」折算过），
      * 最终效果是整屏模糊。
      */
@@ -108,8 +108,8 @@ public final class BlurRenderer {
         int y = 0;
         int width = scaledWidth;
         int height = scaledHeight;
-        // 下面的算式刻意与 Soar 的 BlurUtils 保持逐项一致（即使 height 目前恒等于 scaledHeight），
-        // 这样模糊区域与 Soar 的表现完全相同，将来改成局部模糊时也不用重算。
+        // 下面的算式刻意与最初的模糊实现逐项一致（即使 height 目前恒等于 scaledHeight），
+        // 这样模糊区域表现稳定，将来改成局部模糊时也不用重算。
 
         List<Shader> shaders = ShaderGroupAccess.getShaders(this.shaderGroup);
         if (shaders == null) {

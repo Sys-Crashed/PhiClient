@@ -7,7 +7,7 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 /**
  * 内容卡片：标题 + 说明 + 右侧状态标签。
  *
- * <p>对应 Soar 的 {@code ui.comp.impl} 里那一堆具体组件（Toggle / Slider / Keybind ...）的共同外观：
+ * <p>参考常见设置组件（Toggle / Slider / Keybind ...）的共同外观：
  * 圆角卡片 + hover 高亮 + 右侧状态区。这里先给出最基础的卡片，后续的开关、滑块等可以在它上面扩展。
  */
 public class PhiCard extends PhiComponent {

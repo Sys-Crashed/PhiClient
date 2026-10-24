@@ -69,7 +69,7 @@ dependencies {
 
     // ---- NanoVG（GUI 渲染用）----
     // Minecraft 1.8.9 自带的是 LWJGL 2，里面没有 NanoVG。
-    // libs/lwjgl-soar.jar 是「LWJGL 3 的裁剪版」：只保留 org.lwjgl.system(336) / nanovg(52) / stb / opencl / util，
+    // libs/lwjgl-phi.jar 是「LWJGL 3 的裁剪版」：只保留 org.lwjgl.system(336) / nanovg(52) / stb / opencl / util，
     // 并且把会和 LWJGL 2 撞车的 org.lwjgl.BufferUtils / PointerBuffer 挪到了 org.lwjgl3.*，
     // 因此可以和 LWJGL 2 共存于同一个 JVM。
     // 关键点：NanoVG 的 GL2 后端在创建上下文时会回调 NanoVGGLConfig.configGL(long) 去取 GL 函数指针，
@@ -78,7 +78,7 @@ dependencies {
     // Lwjgl2FunctionProvider（基于 LWJGL 2 的 GLContext 取地址），从而完全绕开 LWJGL 3 的 GL 模块，
     // 也不会触发 org.lwjgl.opengl 的 security seal 冲突。
     // 这两个 jar 不 embed 进产物 jar（reobf 会去碰里头的类），而是作为独立库随发布包一起分发。
-    compile files('libs/lwjgl-soar.jar', 'libs/lwjgl-soar-natives.jar')
+    compile files('libs/lwjgl-phi.jar', 'libs/lwjgl-phi-natives.jar')
 }
 
 // ---- 离线可构建（重要）----
@@ -196,7 +196,7 @@ afterEvaluate {
     }
 }
 
-// ---- 自启动发布包（SoarClient 同款：解压即跑 start.bat，不依赖任何第三方启动器）----
+// ---- 自启动发布包（解压即跑 start.bat，不依赖任何第三方启动器）----
 // 为什么要自带启动配置：OptiFine 只有在「父加载器（系统 classpath）能看到它的 jar」时才找得到自己
 // （见 OptiFineProvisioner/OptiFineCompat 的注释），所以必须把 OptiFine 排进 -cp，
 // 指望玩家去别的启动器里装 OptiFine 是不可靠的。
@@ -208,8 +208,8 @@ afterEvaluate {
 
     // dev classpath 里已经有 1.8.9 的全部依赖库，剔掉"开发专用"的条目即可直接复用
     // 只取「依赖缓存里的 jar」：
-    //   - 排除项目 libs/ 下的遗留物（Soar 的 lwjgl-soar / ViaVersion / jcef 等），
-    //     尤其是 lwjgl-soar 会和原版 lwjgl 撞车；
+    //   - 排除项目 libs/ 下的遗留物（lwjgl-phi / ViaVersion / jcef 等），
+    //     尤其是 lwjgl-phi 会和原版 lwjgl 撞车；
     //   - 排除 SRG 命名的 MC（发布要用混淆的那份）、ForgeGradle 自身的 jar、以及非 jar 的目录条目。
     def libs = tasks.runClient.classpath.files.findAll { f ->
         def n = f.name.toLowerCase()
@@ -219,7 +219,7 @@ afterEvaluate {
     def nativeJars = libs.findAll { it.name.toLowerCase().contains('natives-windows') }
     def runtimeLibs = libs.findAll { !it.name.toLowerCase().contains('natives-') }
 
-    // 目录结构对齐原版 SoarClient 的发布包：
+    // 目录结构（解压即玩的自启动发布包）：
     //   start.bat / java(自带运行时) / minecraft(1.8.9.jar + 客户端) / libraries / natives / assets / game
     task releaseJar(type: Copy) {
         dependsOn reobfJar
@@ -238,7 +238,7 @@ afterEvaluate {
         from runtimeLibs
         from optifineJar
         // NanoVG 运行库不在 Gradle 缓存里（是项目自带的 jars），必须显式带上
-        from files('libs/lwjgl-soar.jar', 'libs/lwjgl-soar-natives.jar')
+        from files('libs/lwjgl-phi.jar', 'libs/lwjgl-phi-natives.jar')
         into file("$releaseDir/libraries")
         doLast {
             logger.lifecycle("Libraries: ${runtimeLibs.size()} jar(s) + optifine -> libraries/")

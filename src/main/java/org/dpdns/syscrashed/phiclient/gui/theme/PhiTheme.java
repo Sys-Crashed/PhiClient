@@ -3,8 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui.theme;
 /**
  * 界面配色。
  *
- * <p>对应原 SoarClient 的 {@code management.color}（AccentColor / ColorPalette / ColorType），
- * 但只保留当前中心界面真正用到的那几组颜色，语义保持一致：
+ * <p>只保留当前中心界面真正用到的那几组颜色：
  * <ul>
  *   <li>ACCENT / ACCENT_GRADIENT —— 主色与其渐变端点；</li>
  *   <li>PANEL / PANEL_DARK —— 面板背景与侧栏深色；</li>

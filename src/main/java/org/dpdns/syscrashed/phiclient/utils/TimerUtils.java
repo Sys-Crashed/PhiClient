@@ -3,8 +3,7 @@ package org.dpdns.syscrashed.phiclient.utils;
 /**
  * 极简计时器：记录上一次 reset 的时间戳，提供「是否已经过去 N 毫秒」与「已过去多少毫秒」。
  *
- * <p>对齐原 SoarClient 的 {@code me.eldodebug.soar.utils.TimerUtils}，
- * 但去掉了与剪贴板/文件相关的部分，只保留动画真正需要的部分。
+ * <p>仅保留动画真正需要的部分（计时 / 帧间隔测量），去掉了与剪贴板 / 文件相关的功能。
  */
 public final class TimerUtils {
 

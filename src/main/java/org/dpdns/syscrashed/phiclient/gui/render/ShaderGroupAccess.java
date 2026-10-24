@@ -11,8 +11,8 @@ import net.minecraft.client.shader.ShaderGroup;
 /**
  * 取 {@link ShaderGroup} 内部的 shader 列表。
  *
- * <p>1.8.9 的 ShaderGroup 没有公开的 getter，原 SoarClient 是用 mixin 把私有字段
- * {@code listShaders} 暴露出来的。但那条路依赖 mixin refmap 里的<b>字段</b>映射
+ * <p>1.8.9 的 ShaderGroup 没有公开的 getter，如果用 mixin 把私有字段
+ * {@code listShaders} 暴露出来，会依赖 mixin refmap 里的<b>字段</b>映射
  * （本项目的 Mixin AP 只为 MixinMinecraft 生成了方法 / 字段映射，没有为
  * MixinShaderGroup 生成 {@code listShaders} 的映射），在混淆环境下会找不到字段。
  *

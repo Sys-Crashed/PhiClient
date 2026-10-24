@@ -40,7 +40,7 @@ public class PhiTweaker implements ITweaker {
 
     @Override
     public void acceptOptions(List<String> args, File gameDir, File assetsDir, String profile) {
-        // 最早的机会点做 OptiFine 存在性检测（对齐 SoarClient 的做法）
+        // 最早的机会点做 OptiFine 存在性检测
         OptiFineCompat.detectOptiFine();
 
         // FML 会把 tweaker 的 acceptOptions 调用两次（FMLTweaker 一次、LaunchWrapper 一次）。
@@ -80,10 +80,10 @@ public class PhiTweaker implements ITweaker {
         //     LaunchClassLoader 默认把 "org.lwjgl." 列为 classLoaderException，命中排除项的类会直接
         //     委派给父加载器（系统 classpath），**根本不会经过 LaunchClassLoader 的字节码变换**。
         //     于是 NanoVGGLConfig 用的是 LWJGL 3 原版 configGL —— 它会 Class.forName("org.lwjgl.opengl.GL")
-        //     去加载 LWJGL 3 的 GL 模块，而我们裁剪过的 lwjgl-soar.jar 里根本没有这个类（也不该有：
+        //     去加载 LWJGL 3 的 GL 模块，而我们裁剪过的 lwjgl-phi.jar 里根本没有这个类（也不该有：
         //     LWJGL 2 的 lwjgl.jar 是 jar 级 sealed 的，往 org.lwjgl.* 里塞类会直接抛 SecurityException）。
         //     结果就是真机上 NanoVG 上下文创建失败、界面画不出来（dev 环境因为类路径不同反而能过）。
-        //     与原 SoarClient 的 SoarTweaker#unlockLwjgl 完全一致。
+        //     与标准 LWJGL 解锁做法一致。
         unlockLwjgl(classLoader);
 
         // 0a. 先把内置的 OptiFine 供给出来（取出 jar 并挂到类加载器），让用户无需手动安装。
@@ -138,7 +138,7 @@ public class PhiTweaker implements ITweaker {
      * <p>没有这一步，{@code org.lwjgl.nanovg.*} 会被直接委派给父加载器，
      * {@link LwjglTransformer} 就永远不会被应用 —— 真机上 NanoVG 会因为拿不到 GL 函数指针而创建失败。
      *
-     * <p>实现与原 SoarClient 的 {@code SoarTweaker#unlockLwjgl} 一致；用反射是为了同时兼容
+     * <p>用反射是为了同时兼容
      * 标准 launchwrapper 1.11 与 OptiFine 自带的 launchwrapper-of。
      */
     private static void unlockLwjgl(LaunchClassLoader classLoader) {

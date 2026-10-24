@@ -107,7 +107,7 @@ OptiFine 是以**嵌套 jar 资源**（`assets/phiclient/optifine/`）放进去�
 
 ## 自启动发布包（不依赖任何第三方启动器）
 
-与上游 SoarClient 的发布包同构：把**真实混淆的 1.8.9 客户端** + 依赖库 + 原生库 + 资源 + OptiFine +
+把**真实混淆的 1.8.9 客户端** + 依赖库 + 原生库 + 资源 + OptiFine +
 **自带 Java 8 运行时** + `start.bat` 组装成一个目录 / zip。解压双击 `start.bat` 即玩：
 玩家不需要装 OptiFine，不需要装 Java，也不需要任何第三方启动器。
 
@@ -119,7 +119,7 @@ gradlew makeRelease -PskipAssets       # 跳过资源复制（约 110MB），加
 gradlew makeRelease -PskipJava         # 不自带运行时（脚本会退回在本机找 Java 8）
 ```
 
-产物结构（对齐 `SoarClient.zip`）：
+产物结构：
 
 ```
 PhiClient/

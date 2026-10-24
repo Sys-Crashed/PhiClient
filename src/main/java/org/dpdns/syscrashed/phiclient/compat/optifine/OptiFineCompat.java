@@ -47,7 +47,7 @@ public final class OptiFineCompat {
     }
 
     /**
-     * 早期存在性检测（对齐 SoarClient：它在 {@code SoarTweaker#acceptOptions} 里做同样的事）。
+     * 早期存在性检测（在 tweaker 最早的回调里判断 OptiFine 是否已就绪）。
      *
      * <p>检测点是资源 {@code optifine/OptiFineClassTransformer.class}：
      * 它在 OptiFine 的 jar 里始终存在，且不依赖游戏是否已启动，因此适合放在 tweaker 最早的回调里判断。
