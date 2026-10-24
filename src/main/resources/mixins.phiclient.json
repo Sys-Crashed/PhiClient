@@ -1,0 +1,9 @@
+{
+    "package": "org.dpdns.syscrashed.phiclient.injection.mixin.mixins",
+    "refmap": "mixins.phiclient.refmap.json",
+    "compatibilityLevel": "JAVA_8",
+    "minVersion": "0.7",
+    "mixins": [
+        "MixinMinecraft"
+    ]
+}

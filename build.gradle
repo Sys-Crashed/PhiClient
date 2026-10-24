@@ -1,0 +1,337 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+        maven {
+            name = "forge"
+            url = "http://files.minecraftforge.net/maven"
+        }
+        maven {
+            name = 'sponge'
+            url = 'https://repo.spongepowered.org/maven'
+        }
+        maven {
+            url = 'https://jitpack.io'
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT'
+        classpath 'org.spongepowered:mixingradle:0.6-SNAPSHOT'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.tweaker-client'
+apply plugin: 'org.spongepowered.mixin'
+apply plugin: 'java'
+
+version = "Release"
+group = "org.dpdns.syscrashed"
+archivesBaseName = "PhiClient"
+
+sourceCompatibility = targetCompatibility = 1.8
+compileJava.options.encoding = 'UTF-8'
+
+minecraft {
+    version = "1.8.9"
+    tweakClass = "org.dpdns.syscrashed.phiclient.injection.mixin.PhiTweaker"
+    runDir = "run"
+    mappings = "stable_22"
+    clientJvmArgs = ["-XX:-DisableExplicitGC"]
+    makeObfSourceJar = false
+}
+
+repositories {
+    maven {
+        name "jitpack"
+        url "https://jitpack.io"
+    }
+
+    maven {
+        name "spongepowered"
+        url "https://repo.spongepowered.org/maven/"
+    }
+    jcenter()
+    mavenCentral()
+}
+
+configurations {
+    embed
+    compile.extendsFrom(embed)
+}
+
+dependencies {
+    embed('org.spongepowered:mixin:0.7.11-SNAPSHOT') {
+        exclude module: 'launchwrapper'
+        exclude module: 'guava'
+        exclude module: 'gson'
+        exclude module: 'commons-io'
+    }
+
+    // ---- NanoVG（GUI 渲染用）----
+    // Minecraft 1.8.9 自带的是 LWJGL 2，里面没有 NanoVG。
+    // libs/lwjgl-soar.jar 是「LWJGL 3 的裁剪版」：只保留 org.lwjgl.system(336) / nanovg(52) / stb / opencl / util，
+    // 并且把会和 LWJGL 2 撞车的 org.lwjgl.BufferUtils / PointerBuffer 挪到了 org.lwjgl3.*，
+    // 因此可以和 LWJGL 2 共存于同一个 JVM。
+    // 关键点：NanoVG 的 GL2 后端在创建上下文时会回调 NanoVGGLConfig.configGL(long) 去取 GL 函数指针，
+    // 原版 LWJGL 3 会在那里 Class.forName("org.lwjgl.opengl.GL") 找自己的 GL 模块，和 LWJGL 2 冲突；
+    // 我们用 LwjglTransformer（注册在 PhiTweaker 里）在字节码层面把 configGL 重定向到
+    // Lwjgl2FunctionProvider（基于 LWJGL 2 的 GLContext 取地址），从而完全绕开 LWJGL 3 的 GL 模块，
+    // 也不会触发 org.lwjgl.opengl 的 security seal 冲突。
+    // 这两个 jar 不 embed 进产物 jar（reobf 会去碰里头的类），而是作为独立库随发布包一起分发。
+    compile files('libs/lwjgl-soar.jar', 'libs/lwjgl-soar-natives.jar')
+}
+
+// ---- 离线可构建（重要）----
+// 依赖里有 SNAPSHOT（org.spongepowered:mixin:0.7.11-SNAPSHOT）。Gradle 对 changing module
+// 的缓存默认 24 小时后失效，失效后会在每次构建时尝试联网重新解析 —— 而本机的代理并不总是可用，
+// 于是构建会以 "java.net.ConnectException: Connection timed out" 直接失败。
+// 把这类依赖的缓存有效期设为 0（永不过期）后：不再联网、构建稳定，版本也随之固定（我们本来
+// 就刻意锁在 0.7.11-SNAPSHOT 这个版本上）。
+configurations.all {
+    resolutionStrategy {
+        cacheChangingModulesFor 0, 'seconds'
+    }
+}
+
+mixin {
+    defaultObfuscationEnv = "notch"
+    add sourceSets.main, "mixins.phiclient.refmap.json"
+}
+
+processResources {
+    inputs.files "src/main/resources"
+    outputs.dir "build/classes/main"
+    copy {
+        from("src/main/resources")
+        into("build/classes/main")
+    }
+}
+
+jar {
+    dependsOn configurations.compile
+    from {
+        configurations.embed.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+}
+
+jar {
+    manifest.attributes(
+            "MixinConfigs": 'mixins.phiclient.json',
+            "TweakClass": 'org.dpdns.syscrashed.phiclient.injection.mixin.PhiTweaker',
+            "TweakOrder": 0,
+            "Manifest-Version": 1.0
+    )
+
+    configurations.embed.each { dep ->
+        from(project.zipTree(dep)) {
+            exclude 'META-INF', 'META-INF/**'
+        }
+    }
+}
+
+// ---- OptiFine 集成（可选）----
+// 先弄清 OptiFine 的工作原理，再谈"集成"：
+//   这个 jar 里绝大部分内容是 patch/<混淆类名>.class.xdelta —— 针对「未被修改过的原版字节」
+//   做的二进制增量补丁（配 .md5 校验），由 optifine.OptiFineClassTransformer 在类加载时套用。
+// 由此得到三条结论：
+//   1) 它并不真的需要 Forge：optifine.OptiFineTweaker 唯一动作就是
+//      classLoader.registerTransformer("optifine.OptiFineClassTransformer")。
+//      PhiTweaker#injectIntoClassLoader 已经代做了这一步（且排在 Mixin 之前），
+//      所以只要 OptiFine 在启动 classpath 上就会自动生效。
+//   2) 开发环境测不出 OptiFine：dev 跑的是 SRG 命名的 MC，而 patch 按混淆类名匹配，名字对不上会直接跳过。
+//      只能在真实混淆客户端里验证（见 README 的 OptiFine 章节）。
+//   3) 它能被塞进自己的 jar：transformer 用 getProtectionDomain().getCodeSource() 定位自己的 jar，
+//      合并后 CodeSource 变成 PhiClient 的 jar，只要 patch/** 也一起打进去就照常工作。
+// 用法：
+//   默认 —— OptiFine 完全不参与构建；发布时把它和 PhiClient 一起放进启动 classpath（推荐，见 README）
+//   gradlew build -PbundleOptifine=true —— 把 OptiFine 全量合进 PhiClient jar
+//                                         （属于二次分发，请先自行确认授权是否允许）
+//                                         注意：reobfJar 会跑在合并后的 jar 上，
+//                                         有可能连带重映射 OptiFine 自身已经用混淆名写好的类，
+//                                         一旦出问题请退回"外置 classpath"方案。
+//   gradlew build -PoptifineJar=<路径>  —— 指定 OptiFine jar 位置，默认取项目根 OptiFine_1.8.9_HD_U_M5.jar
+// OptiFine jar 的位置：优先用仓库里已跟踪的 src/ 下那份，退回项目根目录的本地副本。
+// 两者都没有时 bundleOptifine 自动为 false，构建照常成功（只是产物里不含内置 OptiFine）。
+def optifineJarPath = project.hasProperty('optifineJar') ? project.property('optifineJar').toString()
+        : (file('src/OptiFine_1.8.9_HD_U_M5.jar').exists() ? 'src/OptiFine_1.8.9_HD_U_M5.jar' : 'OptiFine_1.8.9_HD_U_M5.jar')
+def optifineJar = file(optifineJarPath)
+// 默认：根目录存在 OptiFine jar 就内置进发布产物，让用户不必自己安装。
+// 想退回"外置 classpath"（不内置、发布时需用户自己准备 OptiFine）就显式传 -PbundleOptifine=false。
+project.ext.bundleOptifine = project.hasProperty('bundleOptifine')
+        ? Boolean.parseBoolean(project.property('bundleOptifine').toString())
+        : optifineJar.exists()
+
+if (project.ext.bundleOptifine) {
+    if (!optifineJar.exists()) {
+        throw new GradleException("OptiFine jar not found: " + optifineJar.getAbsolutePath())
+    }
+    // 以【嵌套 jar 资源】的形式放进去，而不是把 OptiFine 的类直接铺进我们的 jar：
+    //   1) reobfJar 会把 jar 里所有 .class 重映射一遍；铺开的话会误伤 OptiFine 自身
+    //      （它本来就是混淆名，再映射一次可能不一致）。嵌成资源则只是一段二进制，reobf 不会碰。
+    //   2) 运行时由 OptiFineProvisioner 解压成目录再挂到 LaunchClassLoader ——
+    //      只有目录形式才能让 OptiFine 通过 getCodeSource() 定位到自己
+    //      （jar 形式会得到 jar 条目 URL，抛 "URI is not hierarchical" 而失败）。
+    jar {
+        into('assets/phiclient/optifine') {
+            from optifineJar
+        }
+        doLast {
+            logger.lifecycle("Embedded OptiFine (" + optifineJar.getName() + ") into " + archiveName)
+        }
+    }
+}
+
+// ---- ForgeGradle 2.1 与 Gradle 4.7 的兼容性修正 ----
+// 1) Gradle 4.x 把类输出到 build/classes/java/main，而 ForgeGradle 2.1 的 runClient
+//    仍按旧布局取 build/classes/main，会导致 --tweakClass 报 ClassNotFoundException。
+//    这里把真实类目录补进 runClient 的 classpath。
+// 2) runClient 偶发被判定 UP-TO-DATE 而不真正启动，强制每次执行。
+afterEvaluate {
+    tasks.runClient {
+        outputs.upToDateWhen { false }
+        classpath += files(sourceSets.main.output.classesDirs)
+    }
+}
+
+// ---- 自启动发布包（SoarClient 同款：解压即跑 start.bat，不依赖任何第三方启动器）----
+// 为什么要自带启动配置：OptiFine 只有在「父加载器（系统 classpath）能看到它的 jar」时才找得到自己
+// （见 OptiFineProvisioner/OptiFineCompat 的注释），所以必须把 OptiFine 排进 -cp，
+// 指望玩家去别的启动器里装 OptiFine 是不可靠的。
+// 这里把真实（混淆）1.8.9 客户端 + 依赖库 + 原生库 + 资源 + OptiFine + start.bat 组装成一个目录 / zip。
+afterEvaluate {
+    def releaseDir = file("$buildDir/release/PhiClient")
+    def obfMc = file("${gradle.gradleUserHomeDir}/caches/minecraft/net/minecraft/minecraft/1.8.9/minecraft-1.8.9.jar")
+    def assetsCache = file("${gradle.gradleUserHomeDir}/caches/minecraft/assets")
+
+    // dev classpath 里已经有 1.8.9 的全部依赖库，剔掉"开发专用"的条目即可直接复用
+    // 只取「依赖缓存里的 jar」：
+    //   - 排除项目 libs/ 下的遗留物（Soar 的 lwjgl-soar / ViaVersion / jcef 等），
+    //     尤其是 lwjgl-soar 会和原版 lwjgl 撞车；
+    //   - 排除 SRG 命名的 MC（发布要用混淆的那份）、ForgeGradle 自身的 jar、以及非 jar 的目录条目。
+    def libs = tasks.runClient.classpath.files.findAll { f ->
+        def n = f.name.toLowerCase()
+        def p = f.absolutePath
+        return f.isFile() && n.endsWith('.jar') && p.startsWith(gradle.gradleUserHomeDir.absolutePath) && !(n == 'minecraftsrc-1.8.9.jar' || n.startsWith('forgegradle'))
+    }
+    def nativeJars = libs.findAll { it.name.toLowerCase().contains('natives-windows') }
+    def runtimeLibs = libs.findAll { !it.name.toLowerCase().contains('natives-') }
+
+    // 目录结构对齐原版 SoarClient 的发布包：
+    //   start.bat / java(自带运行时) / minecraft(1.8.9.jar + 客户端) / libraries / natives / assets / game
+    task releaseJar(type: Copy) {
+        dependsOn reobfJar
+        from tasks.jar.archivePath
+        into file("$releaseDir/minecraft")
+        rename { 'PhiClient.jar' }
+    }
+
+    task releaseMinecraft(type: Copy) {
+        from obfMc
+        into file("$releaseDir/minecraft")
+        rename { '1.8.9.jar' }
+    }
+
+    task releaseLibraries(type: Copy) {
+        from runtimeLibs
+        from optifineJar
+        // NanoVG 运行库不在 Gradle 缓存里（是项目自带的 jars），必须显式带上
+        from files('libs/lwjgl-soar.jar', 'libs/lwjgl-soar-natives.jar')
+        into file("$releaseDir/libraries")
+        doLast {
+            logger.lifecycle("Libraries: ${runtimeLibs.size()} jar(s) + optifine -> libraries/")
+        }
+    }
+
+    // 自带 Java 8 运行时：start.bat 优先用 java\bin\javaw.exe，玩家机器上没装 Java 也能直接跑。
+    // 取 Gradle 自己所在的 JDK 8 的 jre 目录（gradle.properties 已锁定 JDK 8）。
+    // -PskipJava 可跳过（脚本会退回在本机搜索 Java 8）。
+    task releaseJava(type: Copy) {
+        onlyIf {
+            if (project.hasProperty('skipJava')) return false
+            def jh = new File(System.getProperty('java.home'))
+            def ok = new File(jh, 'bin/javaw.exe').exists() && new File(jh, 'bin/java.exe').exists()
+            if (!ok) logger.lifecycle("Skip bundled runtime: ${jh} has no java.exe/javaw.exe")
+            return ok
+        }
+        from System.getProperty('java.home')
+        into file("$releaseDir/java")
+        exclude 'lib/deploy/**', 'lib/deploy.jar', 'lib/plugin.jar', 'lib/javaws.jar', '*.exe'
+        doLast {
+            logger.lifecycle("Bundled Java runtime: ${System.getProperty('java.home')} -> java/")
+        }
+    }
+
+    task releaseNatives {
+        inputs.files nativeJars
+        outputs.dir file("$releaseDir/natives")
+        doLast {
+            def out = file("$releaseDir/natives")
+            out.mkdirs()
+            nativeJars.each { jar ->
+                copy {
+                    from(zipTree(jar)) { exclude 'META-INF/**' }
+                    into out
+                }
+            }
+            logger.lifecycle("Natives: ${nativeJars.size()} jar(s) -> natives/")
+        }
+    }
+
+    task releaseAssets(type: Copy) {
+        onlyIf { !project.hasProperty('skipAssets') && assetsCache.exists() }
+        from assetsCache
+        into file("$releaseDir/assets")
+    }
+
+    // 启动脚本放在仓库的 launcher/ 下（便于直接编辑），这里只负责复制进发布包。
+    // 必须转成 CRLF：cmd.exe 对纯 LF 的批处理会解析错乱。
+    task releaseScript {
+        inputs.dir 'launcher'
+        outputs.file file("$releaseDir/start.bat")
+        doLast {
+            releaseDir.mkdirs()
+            fileTree('launcher').each { f ->
+                new File(releaseDir, f.name).text =
+                        f.getText('UTF-8').replace('\r\n', '\n').replace('\n', '\r\n')
+            }
+        }
+    }
+
+    task makeRelease {
+        dependsOn releaseJar, releaseMinecraft, releaseLibraries, releaseNatives, releaseAssets, releaseJava, releaseScript
+    }
+
+    task packageRelease(type: Zip) {
+        dependsOn makeRelease
+        from releaseDir
+        baseName = 'PhiClient'
+        appendix = ''
+        version = ''
+        classifier = 'Release'
+        destinationDir = file("$buildDir/release")
+    }
+
+    // 一条命令跑「真实混淆客户端 + OptiFine」，等价于双击 start.bat
+    task runRelease(type: JavaExec) {
+        dependsOn makeRelease
+        workingDir = releaseDir
+        main = 'net.minecraft.launchwrapper.Launch'
+        classpath = files(fileTree("$releaseDir/libraries") { include '*.jar' }) + files(fileTree("$releaseDir/minecraft") { include '*.jar' })
+        jvmArgs = ["-Xmx1G", "-XX:-DisableExplicitGC", "-Djava.library.path=" + new File(releaseDir, "natives").absolutePath]
+        args = ['--tweakClass', 'org.dpdns.syscrashed.phiclient.injection.mixin.PhiTweaker',
+                '--version', '1.8.9',
+                '--gameDir', new File(releaseDir, "game").absolutePath,
+                '--assetsDir', new File(releaseDir, "assets").absolutePath,
+                '--assetIndex', '1.8',
+                '--username', 'PhiPlayer',
+                '--uuid', '00000000-0000-0000-0000-000000000000',
+                '--accessToken', '0',
+                '--userType', 'mojang',
+                '--userProperties', '{}']
+        outputs.upToDateWhen { false }
+    }
+}
+
