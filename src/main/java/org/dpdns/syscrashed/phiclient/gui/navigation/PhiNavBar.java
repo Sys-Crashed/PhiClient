@@ -89,6 +89,9 @@ public class PhiNavBar {
     private float hoverOriginX;
     private float hoverOriginY;
 
+    /** The entry the hover reveal belongs to (it stays there while the reveal fades out). */
+    private int revealIndex = -1;
+
     private int hoverIndexPrev = -1;
 
     /**
@@ -176,6 +179,7 @@ public class PhiNavBar {
         if (this.hoveredIndex >= 0) {
             if (this.hoverIndexPrev != this.hoveredIndex) {
                 // The pointer entered another entry: the reveal spreads from the new position.
+                this.revealIndex = this.hoveredIndex;
                 this.hoverOriginX = mouseX;
                 this.hoverOriginY = mouseY;
 
@@ -187,7 +191,8 @@ public class PhiNavBar {
             // The reveal grows quickly ...
             this.hoverAmount = Math.min(1.0F, this.hoverAmount + deltaMs / HOVER_IN);
         } else {
-            // ... and fades out slowly, so it stays visible long enough to be seen.
+            // ... and fades out slowly, so it stays visible long enough to be seen. The entry it
+            // belongs to is kept until the reveal has faded away completely.
             this.hoverAmount = Math.max(0.0F, this.hoverAmount - deltaMs / HOVER_OUT);
         }
 
@@ -243,7 +248,9 @@ public class PhiNavBar {
             nvg.drawSkewRect(this.itemLeftXs[i], top, width, this.itemHeight, radius, base);
 
             // The hover color spreads from the pointer position outward. A press flashes the accent.
-            if (i == this.hoveredIndex && this.hoverAmount > 0.001F) {
+            // The reveal of an entry is still drawn while it fades out, so the pointer leaving the
+            // entry does not make the highlight disappear at once.
+            if (i == this.revealIndex && this.hoverAmount > 0.001F) {
                 int revealColor = (i == this.pressedIndex)
                         ? PhiTheme.accent()
                         : (isSelected ? PhiTheme.mix(PhiTheme.level5(), PhiTheme.accent(), 0.45F) : PhiTheme.level4());
