@@ -144,8 +144,11 @@ public class PhiMusicControl extends PhiComponent {
         float coverY = this.y + padding * 0.9F;
 
         nvg.drawSkewRect(contentLeft, coverY, coverSize, coverSize, radius * 0.6F, PhiTheme.level3());
-        PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F, coverY + coverSize * 0.5F,
-                coverSize * 0.5F, PhiTheme.accent());
+
+        // The cover is a parallelogram, so its icon sits in the centre of the shape and not in the
+        // centre of its bounding box.
+        PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F + PhiSkew.offset(coverSize) * 0.5F,
+                coverY + coverSize * 0.5F, coverSize * 0.5F, PhiTheme.accent());
 
         // Title and artist behind the cover. The column of the texts ends in front of the transport
         // buttons, so the texts can never run into them.
@@ -154,7 +157,8 @@ public class PhiMusicControl extends PhiComponent {
         float transportGap = TRANSPORT_GAP * this.uiScale;
         float transportWidth = transportSize * 3.0F + transportGap * 2.0F;
 
-        float textX = contentLeft + coverSize + TEXT_GAP * this.uiScale;
+        // The cover leans to the right, so the texts have to start behind its upper right corner.
+        float textX = contentLeft + coverSize + PhiSkew.offset(coverSize) + TEXT_GAP * this.uiScale;
         float textRight = contentRight - repositorySize - CONTROL_GAP * this.uiScale - transportWidth
                 - CONTROL_GAP * this.uiScale;
         float textWidth = Math.max(0.0F, textRight - textX);

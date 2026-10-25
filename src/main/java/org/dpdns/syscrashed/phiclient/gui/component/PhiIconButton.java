@@ -99,6 +99,20 @@ public class PhiIconButton extends PhiComponent {
         this.icon.draw(nvg, centerX, centerY, this.height * 0.55F, color);
     }
 
+    /**
+     * The button is a parallelogram, so the pointer has to be tested against the shape and not against
+     * its bounding box - otherwise the highlight would appear in the upper left corner, which is outside
+     * of the button.
+     *
+     * @param pointX the point x.
+     * @param pointY the point y.
+     * @return true if the point is inside the button.
+     */
+    @Override
+    protected boolean isInside(float pointX, float pointY) {
+        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
+    }
+
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton != 0 || this.action == null) {

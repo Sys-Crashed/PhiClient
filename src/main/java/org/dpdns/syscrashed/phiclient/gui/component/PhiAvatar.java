@@ -58,10 +58,13 @@ public class PhiAvatar extends PhiComponent {
             return;
         }
 
-        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level2());
+        // The fallback uses the same square as the portrait, so the two never differ in size.
+        nvg.drawRoundedRect(this.x + (this.width - size) * 0.5F, this.y + (this.height - size) * 0.5F,
+                size, size, radius, PhiTheme.level2());
 
         float fontSize = size * 0.46F;
-        nvg.drawTextCentered(this.initial, this.x + this.width * 0.5F,
-                this.y + (this.height - fontSize) * 0.5F, PhiTheme.accent(), fontSize, Fonts.REGULAR);
+        nvg.drawTextCentered(this.initial, this.x + (this.width - size) * 0.5F + size * 0.5F,
+                this.y + (this.height - size) * 0.5F + (size - fontSize) * 0.5F,
+                PhiTheme.accent(), fontSize, Fonts.REGULAR);
     }
 }

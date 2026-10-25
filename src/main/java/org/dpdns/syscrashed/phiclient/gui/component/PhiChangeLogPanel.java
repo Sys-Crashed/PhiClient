@@ -85,25 +85,26 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level3());
 
-        // The content column of the panel.
-        float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
-        float contentRight = PhiSkew.contentRight(this.x, this.width, padding);
-        float contentWidth = contentRight - contentLeft;
-
-        // Title and number of entries.
+        // Title and number of entries. The whole panel uses one diagonal: the headline, the divider and
+        // the entries all sit on the slanted left edge of the panel, so there is only one baseline.
         float titleY = this.y + padding * 0.9F;
+        float titleLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, titleY) + padding;
+        float titleRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, titleY) - padding;
 
-        nvg.drawText("ChangeLog", contentLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+        nvg.drawText("ChangeLog", titleLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
         String counter = this.changeLogs.size() + " changes";
 
-        nvg.drawTextAligned(counter, contentRight, titleY,
+        nvg.drawTextAligned(counter, titleRight, titleY,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
                 PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
 
         float dividerY = titleY + titleSize * 1.25F;
+        float dividerLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, dividerY) + padding;
+        float dividerRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, dividerY) - padding;
 
-        nvg.drawRect(contentLeft, dividerY, contentWidth, Math.max(1.0F, this.uiScale), PhiTheme.level2());
+        nvg.drawRect(dividerLeft, dividerY, dividerRight - dividerLeft, Math.max(1.0F, this.uiScale),
+                PhiTheme.level2());
 
         float badgeHeight = BADGE_HEIGHT * this.uiScale;
         float badgeTextSize = bodySize * 0.85F;
@@ -120,32 +121,41 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         }
 
         // The text of an entry starts behind its badge. The width of the column is the same for every
-        // entry, because the badge and the text move together along the diagonal.
+        // entry: the badge and the text move together along the diagonal, so the distance to the right
+        // edge of the panel stays the same.
         float textGap = BADGE_GAP * this.uiScale;
-        float textWidth = contentWidth - badgeWidth - textGap;
+        float listLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, listTop) + padding;
+        float listRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, listTop) - padding;
+        float textWidth = listRight - listLeft - badgeWidth - textGap;
 
         if (textWidth < bodySize * 2.0F) {
-            textWidth = Math.max(bodySize * 2.0F, contentWidth * 0.5F);
+            textWidth = Math.max(bodySize * 2.0F, (listRight - listLeft) * 0.5F);
         }
 
         // The lines of every entry, in the order of the list.
         List<List<String>> lines = new ArrayList<List<String>>();
+        List<Float> anchors = new ArrayList<Float>();
         float contentHeight = 0.0F;
+        float layoutCursor = listTop;
 
         for (PhiChangeLog entry : this.changeLogs) {
             List<String> wrapped = wrap(nvg, entry.getText(), bodySize, textWidth);
 
             lines.add(wrapped);
+            anchors.add(PhiSkew.leftEdgeAt(this.x, this.y, this.height, layoutCursor) + padding);
 
             float entryHeight = Math.max(badgeHeight, wrapped.size() * lineHeight);
             contentHeight += entryHeight + ENTRY_SPACING * this.uiScale;
+
+            layoutCursor += entryHeight + ENTRY_SPACING * this.uiScale;
         }
 
         float viewportHeight = this.y + this.height - listTop - padding * 0.5F;
         this.scrollState.setContentSize(contentHeight, viewportHeight);
         this.scrollState.update(deltaMs);
 
-        float cursor = listTop - this.scrollState.getOffset();
+        float offset = this.scrollState.getOffset();
+        float cursor = listTop - offset;
 
         for (int i = 0; i < this.changeLogs.size(); i++) {
             PhiChangeLog entry = this.changeLogs.get(i);
@@ -154,8 +164,9 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
             float entryHeight = Math.max(badgeHeight, wrapped.size() * lineHeight);
 
             if (cursor + entryHeight > this.y && cursor < this.y + this.height) {
-                // The anchor of the entry: the badge sits on the diagonal of the panel.
-                float anchorX = PhiSkew.leftEdgeAt(this.x, this.y, this.height, cursor) + padding;
+                // The anchor of the entry does not move while the list is scrolled - only the content
+                // moves up, so the column never drifts to the side.
+                float anchorX = anchors.get(i);
 
                 nvg.drawSkewRect(anchorX, cursor, badgeWidth, badgeHeight, badgeHeight * 0.35F,
                         entry.getType().getBadgeColor());

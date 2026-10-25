@@ -310,7 +310,19 @@ public class GuiPhiHub extends GuiScreen {
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        // While the window opens and closes it is scaled, so the pointer would hit a different place
+        // than the one that is drawn.
+        if (this.introAnimation.getValueFloat() < 1.0F) {
+            return;
+        }
+
         if (this.navBar.mouseClicked(mouseX, mouseY, mouseButton)) {
+            return;
+        }
+
+        // The page slides up after a switch - until the slide is over, the elements are not at the
+        // place the pointer is at.
+        if (this.categoryTransition.getValueFloat() < 1.0F) {
             return;
         }
 
@@ -319,7 +331,15 @@ public class GuiPhiHub extends GuiScreen {
 
     @Override
     public void mouseReleased(int mouseX, int mouseY, int mouseButton) {
+        if (this.introAnimation.getValueFloat() < 1.0F) {
+            return;
+        }
+
         if (this.navBar.mouseReleased(mouseX, mouseY, mouseButton)) {
+            return;
+        }
+
+        if (this.categoryTransition.getValueFloat() < 1.0F) {
             return;
         }
 

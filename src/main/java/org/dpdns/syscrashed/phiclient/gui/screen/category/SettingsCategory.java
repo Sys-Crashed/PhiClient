@@ -52,8 +52,8 @@ public class SettingsCategory extends PhiCategory {
         float uiScale = layout.getUiScale();
         float cardHeight = PhiMetrics.CARD_HEIGHT * uiScale;
         float spacing = PhiMetrics.CARD_SPACING * uiScale;
-        float padding = layout.getPadding();
-        float top = layout.getHubY() + padding;
+        float cardPadding = PhiMetrics.CARD_PADDING * uiScale;
+        float top = layout.getHubY() + layout.getPadding();
 
         // Theme row: a card with the theme switch on its right side.
         float cardBottom = top + cardHeight;
@@ -63,7 +63,10 @@ public class SettingsCategory extends PhiCategory {
         float toggleWidth = TOGGLE_WIDTH * uiScale;
         float toggleHeight = TOGGLE_HEIGHT * uiScale;
         float toggleY = top + (cardHeight - toggleHeight) * 0.5F;
-        float toggleX = PhiSkew.contentRight(cardX, cardWidth, padding) - toggleWidth;
+
+        // The switch shares the content column of the card - the same right edge as the status text of
+        // the other cards, otherwise the two would not be aligned.
+        float toggleX = PhiSkew.contentRight(cardX, cardWidth, cardPadding) - toggleWidth;
 
         this.themeToggle.setX(toggleX);
         this.themeToggle.setY(toggleY);

@@ -127,9 +127,13 @@ public class PhiPlayerCard extends PhiComponent {
         // The name of the player with the welcome text below it - both in the column behind the
         // portrait, so they share one left edge.
         float nameX = this.avatar.getX() + this.avatar.getWidth() + padding;
-        float nameWidth = Math.max(0.0F, this.contentRight - nameX);
         float blockHeight = nameSize * 1.25F + bodySize;
         float nameY = centerY - blockHeight * 0.5F;
+
+        // The clock owns the right end of the card, so the name has to stay in front of it.
+        LocalDateTime now = LocalDateTime.now();
+        float clockWidth = nvg.textWidth(TIME_FORMAT.format(now), clockSize, Fonts.REGULAR);
+        float nameWidth = Math.max(0.0F, this.contentRight - clockWidth - padding - nameX);
 
         nvg.drawText(nvg.limitText(this.playerName, nameSize, Fonts.REGULAR, nameWidth),
                 nameX, nameY, PhiTheme.textPrimary(), nameSize, Fonts.REGULAR);
@@ -142,8 +146,6 @@ public class PhiPlayerCard extends PhiComponent {
         }
 
         // Clock and date on the right side of the card.
-        LocalDateTime now = LocalDateTime.now();
-
         float clockY = centerY - clockSize * 0.85F;
 
         nvg.drawTextAligned(TIME_FORMAT.format(now), this.contentRight, clockY,
