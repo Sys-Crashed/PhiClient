@@ -27,6 +27,11 @@ import org.lwjgl.nanovg.NanoVG;
  * line of a description is shifted to the left by the same slope the interface uses everywhere, so the
  * wrapped text stays parallel to the edge of the panel and never runs into the right border.</p>
  *
+ * <p><b>Scrolling</b>: the list does not move straight down, it moves along the diagonal of the
+ * panel. One pixel up shifts the entries by the same distance to the right as the slant of the
+ * interface, so every entry stays on the line of the slanted left edge - no matter how far the list
+ * was scrolled. The entries are clipped to the panel, so nothing can reach the other column.</p>
+ *
  * <p>Provided methods:</p>
  * <ul>
  *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the panel.</li>
@@ -121,15 +126,13 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         }
 
         // The text of an entry starts behind its badge. The width of the column is the same for every
-        // entry: the badge and the text move together along the diagonal, so the distance to the right
-        // edge of the panel stays the same.
+        // entry: the entries move together along the diagonal of the panel, so the distance to the
+        // right edge of the panel stays the same.
         float textGap = BADGE_GAP * this.uiScale;
-        float listLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, listTop) + padding;
-        float listRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, listTop) - padding;
-        float textWidth = listRight - listLeft - badgeWidth - textGap;
+        float textWidth = this.width - padding * 2.0F - badgeWidth - textGap;
 
         if (textWidth < bodySize * 2.0F) {
-            textWidth = Math.max(bodySize * 2.0F, (listRight - listLeft) * 0.5F);
+            textWidth = Math.max(bodySize * 2.0F, (this.width - padding * 2.0F) * 0.5F);
         }
 
         // The lines of every entry, in the order of the list.
@@ -155,6 +158,24 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         this.scrollState.update(deltaMs);
 
         float offset = this.scrollState.getOffset();
+
+        // The list does not scroll straight down, it scrolls along the diagonal of the panel: one
+        // pixel up moves the entries the same distance to the right as the slant of the interface.
+        // Every entry therefore stays on the same line as the slanted left edge of the panel and
+        // never drifts away from it while the list is scrolled.
+        float slide = PhiSkew.SLOPE * offset;
+
+        // The list is clipped to the panel, so an entry that is scrolled out of the panel cannot
+        // reach the blocks of the other column.
+        nvg.save();
+        float shapeOffset = PhiSkew.offset(this.height);
+
+        nvg.translate(this.x + shapeOffset, this.y);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        nvg.scissor(0.0F, 0.0F, this.width, this.height);
+        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
+        nvg.translate(-(this.x + shapeOffset), -this.y);
+
         float cursor = listTop - offset;
 
         for (int i = 0; i < this.changeLogs.size(); i++) {
@@ -164,9 +185,9 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
             float entryHeight = Math.max(badgeHeight, wrapped.size() * lineHeight);
 
             if (cursor + entryHeight > this.y && cursor < this.y + this.height) {
-                // The anchor of the entry does not move while the list is scrolled - only the content
-                // moves up, so the column never drifts to the side.
-                float anchorX = anchors.get(i);
+                // The anchor of the entry follows the diagonal, so the badge and its text keep the
+                // same distance to each other and to the border of the panel.
+                float anchorX = anchors.get(i) + slide;
 
                 nvg.drawSkewRect(anchorX, cursor, badgeWidth, badgeHeight, badgeHeight * 0.35F,
                         entry.getType().getBadgeColor());
@@ -183,8 +204,15 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
                 float lineY = cursor + (badgeHeight - bodySize) * 0.5F;
                 float lineShift = PhiSkew.SLOPE * lineHeight;
 
+                // The lean of the text is limited, so even a long description never leaves the
+                // panel on the left.
+                float maxLean = Math.max(0.0F, (padding + badgeWidth + textGap
+                        - PhiSkew.SLOPE * (badgeHeight - bodySize) * 0.5F) * 0.5F);
+
                 for (int line = 0; line < wrapped.size(); line++) {
-                    nvg.drawText(wrapped.get(line), lineX - lineShift * line, lineY,
+                    float lean = Math.min(maxLean, lineShift * line);
+
+                    nvg.drawText(wrapped.get(line), lineX - lean, lineY,
                             PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
 
                     lineY += lineHeight;
@@ -193,6 +221,8 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
 
             cursor += entryHeight + ENTRY_SPACING * this.uiScale;
         }
+
+        nvg.restore();
     }
 
     @Override

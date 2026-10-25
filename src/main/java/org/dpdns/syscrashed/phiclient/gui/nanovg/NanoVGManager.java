@@ -502,6 +502,34 @@ public final class NanoVGManager {
     }
 
     /**
+     * Draws the global shape of the interface filled with a diagonal linear gradient.
+     *
+     * <p>The gradient runs from the upper left corner to the lower right corner of the shape. It is
+     * built in the sheared coordinate system of the shape, so the two ends of the gradient follow the
+     * slant of the interface instead of the axes of the screen.</p>
+     *
+     * @param x      the left x of the bounding box.
+     * @param y      the top y of the bounding box.
+     * @param width  the width of the bounding box.
+     * @param height the height of the bounding box.
+     * @param radius the corner radius of the shape.
+     * @param from   the color at the upper left corner.
+     * @param to     the color at the lower right corner.
+     */
+    public void drawSkewRectGradientDiagonal(float x, float y, float width, float height, float radius,
+                                             int from, int to) {
+        float offset = PhiSkew.offset(height);
+
+        save();
+        translate(x + offset, y);
+        skewX(PhiSkew.SHEAR_DEGREES);
+        beginPath();
+        NanoVG.nvgRoundedRect(this.context, 0.0F, 0.0F, width, height, radius);
+        fillPathGradient(from, to, 0.0F, 0.0F, width, height);
+        restore();
+    }
+
+    /**
      * Sets the global alpha that is applied to every subsequent draw call.
      *
      * @param alpha the alpha value in the range {@code [0, 1]}.

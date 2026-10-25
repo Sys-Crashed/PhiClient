@@ -49,6 +49,15 @@ public class PhiNavBar {
     /** Duration of the press feedback. */
     private static final float PRESS_FEEDBACK_MS = 80.0F;
 
+    /** How long the hover reveal takes to cover the whole entry (milliseconds). */
+    private static final float HOVER_IN = 110.0F;
+
+    /** How long the hover reveal takes to fade out again (milliseconds). */
+    private static final float HOVER_OUT = 380.0F;
+
+    /** The progress the reveal starts with, so a quick movement over the entry is visible. */
+    private static final float HOVER_MIN_START = 0.18F;
+
     private final List<PhiCategory> categories = new ArrayList<PhiCategory>();
 
     private final PhiTooltip tooltip = new PhiTooltip();
@@ -166,15 +175,22 @@ public class PhiNavBar {
         // Animate the hover reveal toward the active entry.
         if (this.hoveredIndex >= 0) {
             if (this.hoverIndexPrev != this.hoveredIndex) {
+                // The pointer entered another entry: the reveal spreads from the new position.
                 this.hoverOriginX = mouseX;
                 this.hoverOriginY = mouseY;
+
+                // The reveal does not start at a single point, it already covers a small area when
+                // the pointer only passes over the entry for a moment.
+                this.hoverAmount = Math.max(this.hoverAmount, HOVER_MIN_START);
             }
-            float k = 1.0F - (float) Math.exp(-deltaMs / 90.0F);
-            this.hoverAmount += (1.0F - this.hoverAmount) * Math.min(1.0F, k);
+
+            // The reveal grows quickly ...
+            this.hoverAmount = Math.min(1.0F, this.hoverAmount + deltaMs / HOVER_IN);
         } else {
-            float k = 1.0F - (float) Math.exp(-deltaMs / 90.0F);
-            this.hoverAmount += (0.0F - this.hoverAmount) * Math.min(1.0F, k);
+            // ... and fades out slowly, so it stays visible long enough to be seen.
+            this.hoverAmount = Math.max(0.0F, this.hoverAmount - deltaMs / HOVER_OUT);
         }
+
         this.hoverIndexPrev = this.hoveredIndex;
 
         String text = "";

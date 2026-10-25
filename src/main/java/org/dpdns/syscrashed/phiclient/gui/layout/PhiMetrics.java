@@ -120,17 +120,20 @@ public final class PhiMetrics {
     /** Minimum width of the change log panel. */
     public static final float CHANGELOG_MIN_WIDTH = 170.0F;
 
-    /** Corner radius of the rectangular chips of the tip card. */
-    public static final float CHIP_RADIUS = 6.0F;
+    /** Height of a control block of the home page. */
+    public static final float CONTROL_BLOCK_HEIGHT = 60.0F;
 
-    /** Horizontal inset of the text inside a chip. */
-    public static final float CHIP_PADDING = 10.0F;
+    /** Edge length of the icon of a control block. */
+    public static final float CONTROL_BLOCK_ICON_SIZE = 20.0F;
 
-    /** Height of a chip of the tip card. */
-    public static final float CHIP_HEIGHT = 26.0F;
+    /** Vertical distance between the icon and the text of a control block. */
+    public static final float CONTROL_BLOCK_ICON_GAP = 4.0F;
 
-    /** Horizontal distance between two chips of a row. */
-    public static final float CHIP_GAP = 8.0F;
+    /** Inset between the content of a control block and its edges. */
+    public static final float CONTROL_BLOCK_PADDING = 8.0F;
+
+    /** Horizontal distance between two control blocks of a row. */
+    public static final float CONTROL_BLOCK_GAP = 8.0F;
 
     /**
      * Converts design pixels into the scaled GuiScreen coordinate space.

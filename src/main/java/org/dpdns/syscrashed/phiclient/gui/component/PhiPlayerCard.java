@@ -113,10 +113,14 @@ public class PhiPlayerCard extends PhiComponent {
 
         float centerY = this.y + this.height * 0.5F;
 
-        // Background of the card. The gradient only uses two neighbouring levels: in the light theme a
-        // gradient down to the window level looks dirty, because the card would fade into the window.
-        nvg.drawSkewRectGradient(this.x, this.y, this.width, this.height, radius,
-                PhiTheme.level3(), PhiTheme.level2());
+        // Background of the card. The gradient runs diagonally from the upper left corner (the deeper
+        // tone) to the lower right corner (the lighter one). Only two neighbouring levels are used, so
+        // the card never fades into the window and the gradient does not look dirty.
+        int gradientFrom = PhiTheme.isLight() ? PhiTheme.level4() : PhiTheme.level2();
+        int gradientTo = PhiTheme.isLight() ? PhiTheme.level2() : PhiTheme.level4();
+
+        nvg.drawSkewRectGradientDiagonal(this.x, this.y, this.width, this.height, radius,
+                gradientFrom, gradientTo);
 
         if (this.customBackground) {
             nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiThemeUtils.scrim());

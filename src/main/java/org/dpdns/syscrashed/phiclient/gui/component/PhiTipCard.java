@@ -2,36 +2,27 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
-import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.tips.PhiTips;
-import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
-import org.dpdns.syscrashed.phiclient.utils.PhiGameInfo;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
  * The tip card of the home page (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>The card is split into three rows:</p>
- * <ol>
- *   <li>the <b>headline row</b> with the title of the card and the number of the tip;</li>
- *   <li>the <b>action row</b> with three interactive chips: copy the address of the server, copy the
- *       position of the player and switch the theme;</li>
- *   <li>the <b>value row</b> with three chips that only show a value: the time, the weather and the
- *       dimension of the game world.</li>
- * </ol>
+ * <p>The card shows a single tip: the headline with the word "Tip" and the text of the tip, which is
+ * written out character by character and is always complete after one second. A click on the text
+ * completes it immediately, a second click switches to another tip - the tip is picked at random, so
+ * the list never runs through in the same order twice. The hint in the corner of the card tells the
+ * player that the card can be clicked.</p>
  *
- * <p>The tip itself is written out character by character below the headline - it is always complete
- * after one second. A click on the text completes it immediately, a second click switches to the next
- * tip.</p>
- *
- * <p>The chips are upright rectangles: a row of leaning chips would not look even. They share the
- * content column of the card, so they start at the same x and have the same width.</p>
+ * <p>The card owns exactly one content column (see {@link PhiCard}), so the headline, the text of the
+ * tip and the hint all share the same two x positions and cannot drift apart.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -43,21 +34,21 @@ public class PhiTipCard extends PhiComponent {
     /** The time the tip needs to be written out completely. */
     private static final float REVEAL_DURATION = 1000.0F;
 
+    /** The hint that tells the player that the card can be clicked. */
+    private static final String HINT = "Click to switch tip";
+
     private final float uiScale;
 
     private final List<String> tips = PhiTips.getTips();
+
+    /** The random source that picks the next tip. */
+    private final Random random = new Random();
 
     /** The wrapped lines of the tip that is currently shown. */
     private final List<String> tipLines = new ArrayList<String>();
 
     /** The index of the last character of every wrapped line inside the tip. */
     private final List<Integer> tipLineEnds = new ArrayList<Integer>();
-
-    /** The three interactive chips. */
-    private final List<PhiChip> actionChips = new ArrayList<PhiChip>();
-
-    /** The three chips that only show a value. */
-    private final List<PhiChip> valueChips = new ArrayList<PhiChip>();
 
     /** The tip the wrapped lines belong to. */
     private int wrappedIndex = -1;
@@ -87,17 +78,8 @@ public class PhiTipCard extends PhiComponent {
 
         this.uiScale = uiScale;
         this.lastFrame = System.currentTimeMillis();
-
-        // Row 2: the interactive chips.
-        this.actionChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Copy IP", true));
-        this.actionChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Copy Coord", true));
-        this.actionChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Theme", true));
-
-        // Row 3: the chips that only show a value.
-        this.valueChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Time", false));
-        this.valueChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Weather", false));
-        this.valueChips.add(new PhiChip(0.0F, 0.0F, 0.0F, 0.0F, uiScale, "Dimension", false));
     }
+
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         long now = System.currentTimeMillis();
@@ -112,6 +94,7 @@ public class PhiTipCard extends PhiComponent {
         }
 
         this.revealed += deltaMs * this.charactersPerSecond / 1000.0F;
+
         if (this.revealed > tip.length()) {
             this.revealed = tip.length();
         }
@@ -120,10 +103,8 @@ public class PhiTipCard extends PhiComponent {
         float padding = PhiMetrics.CARD_PADDING * this.uiScale;
         float titleSize = PhiMetrics.FONT_TITLE * this.uiScale;
         float bodySize = PhiMetrics.FONT_BODY * this.uiScale;
+        float hintSize = bodySize * 0.9F;
         float lineHeight = bodySize * 1.35F;
-
-        float chipHeight = PhiMetrics.CHIP_HEIGHT * this.uiScale;
-        float chipGap = PhiMetrics.CHIP_GAP * this.uiScale;
 
         // The one content column of the card.
         float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
@@ -132,53 +113,21 @@ public class PhiTipCard extends PhiComponent {
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level3());
 
-        // Row 1: the headline and the number of the tip.
+        // The headline of the card.
         float titleY = this.y + padding * 0.9F;
 
         nvg.drawText("Tip", contentLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
-        String counter = (this.index + 1) + " / " + this.tips.size();
+        // The hint in the lower right corner of the card.
+        float hintY = this.y + this.height - padding * 0.9F - hintSize;
 
-        nvg.drawTextAligned(counter, contentRight, titleY,
+        nvg.drawTextAligned(HINT, contentRight, hintY,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
-                PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
-
-        // The two rows of chips at the bottom of the card.
-        float valueRowY = this.y + this.height - padding - chipHeight;
-        float actionRowY = valueRowY - chipGap - chipHeight;
-        float dividerY = actionRowY - padding * 0.7F;
-
-        float chipWidth = (contentWidth - chipGap * 2.0F) / 3.0F;
-
-        // The values of the game world change while the card is open.
-        this.valueChips.get(0).setLabel("Time " + PhiGameInfo.getTime());
-        this.valueChips.get(1).setLabel("Weather " + PhiGameInfo.getWeather());
-        this.valueChips.get(2).setLabel("Dimension " + PhiGameInfo.getDimension());
-
-        for (int i = 0; i < this.actionChips.size(); i++) {
-            PhiChip chip = this.actionChips.get(i);
-
-            chip.setX(contentLeft + i * (chipWidth + chipGap));
-            chip.setY(actionRowY);
-            chip.setWidth(chipWidth);
-            chip.setHeight(chipHeight);
-        }
-
-        for (int i = 0; i < this.valueChips.size(); i++) {
-            PhiChip chip = this.valueChips.get(i);
-
-            chip.setX(contentLeft + i * (chipWidth + chipGap));
-            chip.setY(valueRowY);
-            chip.setWidth(chipWidth);
-            chip.setHeight(chipHeight);
-        }
-
-        // Divider above the rows of chips.
-        nvg.drawRect(contentLeft, dividerY, contentWidth, Math.max(1.0F, this.uiScale), PhiTheme.level2());
+                PhiTheme.textSecondary(), hintSize, Fonts.REGULAR);
 
         // The tip itself, written out character by character.
         float tipY = titleY + titleSize * 1.5F;
-        int maxLines = Math.max(1, (int) ((dividerY - bodySize * 0.5F - tipY) / lineHeight));
+        int maxLines = Math.max(1, (int) ((hintY - bodySize * 0.6F - tipY) / lineHeight));
 
         wrapTip(nvg, contentWidth, bodySize);
 
@@ -212,43 +161,12 @@ public class PhiTipCard extends PhiComponent {
         if (cursorX >= 0.0F && revealedChars < tip.length()) {
             nvg.drawRect(cursorX, cursorY, Math.max(1.0F, bodySize * 0.08F), bodySize, PhiTheme.accent());
         }
-
-        // The chips of the two rows.
-        for (PhiChip chip : this.actionChips) {
-            chip.draw(nvg, mouseX, mouseY, partialTicks);
-        }
-
-        for (PhiChip chip : this.valueChips) {
-            chip.draw(nvg, mouseX, mouseY, partialTicks);
-        }
-    }
-    /**
-     * Binds the actions of the three interactive chips of the action row. The order of the list is the
-     * order of the chips: copy the address, copy the position, switch the theme.
-     *
-     * @param actions the actions of the chips.
-     */
-    public void setActions(List<PhiChip.Action> actions) {
-        for (int i = 0; i < this.actionChips.size() && i < actions.size(); i++) {
-            this.actionChips.get(i).setAction(actions.get(i));
-        }
     }
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton != 0) {
             return;
-        }
-
-        // The chips have the priority - they are inside the card as well.
-        for (PhiChip chip : this.actionChips) {
-            chip.mouseClicked(mouseX, mouseY, mouseButton);
-        }
-
-        for (PhiChip chip : this.actionChips) {
-            if (chip.isInside(mouseX, mouseY)) {
-                return;
-            }
         }
 
         if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
@@ -263,7 +181,14 @@ public class PhiTipCard extends PhiComponent {
             return;
         }
 
-        this.index = (this.index + 1) % this.tips.size();
+        // The next tip is picked at random - the list never runs through in the same order twice.
+        int next = this.index;
+
+        while (next == this.index && this.tips.size() > 1) {
+            next = this.random.nextInt(this.tips.size());
+        }
+
+        this.index = next;
         this.revealed = 0.0F;
         this.charactersPerSecond = 0.0F;
     }
@@ -321,12 +246,5 @@ public class PhiTipCard extends PhiComponent {
             this.tipLines.add(line.toString());
             this.tipLineEnds.add(lineStart + line.length());
         }
-    }
-
-    /**
-     * @return the toast of the interface.
-     */
-    protected static PhiToast toast() {
-        return PhiClient.getInstance().getGuiManager().getToast();
     }
 }
