@@ -8,7 +8,8 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * A progress bar of the PhiClient interface
  * (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>The bar uses the global shape of the interface. The played part is drawn in the accent color, the
+ * <p>The bar is an upright rectangle: it lies below the buttons of the music area, and a leaning bar
+ * next to upright buttons would not look even. The played part is drawn in the accent color, the
  * remaining part in the hover level - there is no outline and no visible scrollbar.</p>
  *
  * <p>Provided methods:</p>
@@ -55,12 +56,12 @@ public class PhiProgressBar extends PhiComponent {
         float radius = Math.min(this.height * 0.5F, PhiMetrics.CORNER_RADIUS * this.uiScale);
 
         // Remaining part.
-        nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level4());
+        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level4());
 
         // Played part.
         if (this.progress > 0.0F) {
             float played = this.width * this.progress;
-            nvg.drawSkewRect(this.x, this.y, played, this.height, radius, PhiTheme.accent());
+            nvg.drawRoundedRect(this.x, this.y, played, this.height, radius, PhiTheme.accent());
         }
     }
 }

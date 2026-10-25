@@ -6,27 +6,35 @@ import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
+import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.lwjgl.Sys;
 
 /**
- * The button that opens the repository of the project
+ * The panel that links to the repository of the project
  * (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>The button shows the official mark of GitHub and uses the global shape of the interface. It has no
- * outline: the background level expresses the hover state.</p>
+ * <p>The panel is a block of its own next to the music area - it is not part of it. It shows the
+ * official mark of GitHub and the name of the repository; a click opens the repository in the
+ * browser.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
- *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the button.</li>
+ *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the panel.</li>
  *   <li>{@link #mouseClicked(int, int, int)} - opens the repository in the browser.</li>
  * </ul>
  */
-public class PhiGitHubButton extends PhiComponent {
+public class PhiGitHubPanel extends PhiComponent {
 
-    /** The repository that is opened by the button. */
+    /** The repository that is opened by the panel. */
     public static final String REPOSITORY_URL = "https://github.com/Sys-Crashed/PhiClient";
+
+    /** The name of the repository. */
+    private static final String REPOSITORY_NAME = "Sys-Crashed/PhiClient";
+
+    /** Edge length of the mark of GitHub. */
+    private static final float MARK_SIZE = 34.0F;
 
     private final float uiScale;
 
@@ -37,7 +45,7 @@ public class PhiGitHubButton extends PhiComponent {
      * @param height  the height of the bounding box.
      * @param uiScale the design scale factor of the interface.
      */
-    public PhiGitHubButton(float x, float y, float width, float height, float uiScale) {
+    public PhiGitHubPanel(float x, float y, float width, float height, float uiScale) {
         super(x, y, width, height);
 
         this.uiScale = uiScale;
@@ -50,27 +58,37 @@ public class PhiGitHubButton extends PhiComponent {
         int background = isHovered() ? PhiTheme.level4() : PhiTheme.level3();
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height,
-                PhiMetrics.NAV_ITEM_RADIUS * this.uiScale, background);
+                PhiMetrics.CORNER_RADIUS * this.uiScale, background);
 
-        // The mark sits in the centre of the parallelogram, so it uses the centroid of the shape.
-        float centerX = this.x + this.width * 0.5F + PhiSkew.offset(this.height) * 0.5F;
-        float centerY = this.y + this.height * 0.5F;
-        int color = isHovered() ? PhiTheme.accent() : PhiTheme.textPrimary();
+        float padding = PhiMetrics.CARD_PADDING * this.uiScale;
+        float titleSize = PhiMetrics.FONT_TITLE * this.uiScale;
+        float bodySize = PhiMetrics.FONT_BODY * this.uiScale;
 
-        PhiIcons.GITHUB.draw(nvg, centerX, centerY, this.height * 0.52F, color);
-    }
+        float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
+        float contentRight = PhiSkew.contentRight(this.x, this.width, padding);
 
-    /**
-     * The button is a parallelogram, so the pointer has to be tested against the shape and not against
-     * its bounding box.
-     *
-     * @param pointX the point x.
-     * @param pointY the point y.
-     * @return true if the point is inside the button.
-     */
-    @Override
-    protected boolean isInside(float pointX, float pointY) {
-        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
+        // The mark of GitHub sits in its own square, so the whole panel reads as one row.
+        float markSize = MARK_SIZE * this.uiScale;
+        float markX = contentLeft;
+        float markY = this.y + (this.height - markSize) * 0.5F;
+
+        nvg.drawRoundedRect(markX, markY, markSize, markSize,
+                PhiMetrics.CHIP_RADIUS * this.uiScale, PhiTheme.level2());
+
+        PhiIcons.GITHUB.draw(nvg, markX + markSize * 0.5F, markY + markSize * 0.5F,
+                markSize * 0.55F, isHovered() ? PhiTheme.accent() : PhiTheme.textPrimary());
+
+        // The title and the name of the repository behind the mark.
+        float textX = markX + markSize + padding;
+        float textWidth = Math.max(0.0F, contentRight - textX);
+
+        float titleY = this.y + this.height * 0.5F - bodySize * 0.7F;
+
+        nvg.drawText(nvg.limitText("GitHub Repository", titleSize, Fonts.REGULAR, textWidth),
+                textX, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+
+        nvg.drawText(nvg.limitText(REPOSITORY_NAME, bodySize, Fonts.REGULAR, textWidth),
+                textX, titleY + titleSize * 1.2F, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
     }
 
     @Override

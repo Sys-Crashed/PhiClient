@@ -28,6 +28,13 @@ public final class PhiChangeLogManager {
         this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "Dark and light palette with a live switch"));
         this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.IMPROVED, "Hub follows the game window with a 35 percent area"));
         this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.FIXED, "Mouse clicks and the scroll wheel reach the interface"));
+
+        // Placeholder entries: they make the list long enough to check the scrolling of the panel.
+        for (int i = 1; i <= 100; i++) {
+            this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED,
+                    "Placeholder entry " + i + " - a longer description that wraps over several lines "
+                            + "so the scrolling of the change log can be checked properly"));
+        }
     }
 
     /**

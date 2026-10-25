@@ -28,8 +28,17 @@ public abstract class PhiComponent {
 
     private boolean hovered;
 
-    /** The duration of the hover ripple in milliseconds. */
-    private static final float RIPPLE_DURATION = 260.0F;
+    /** The duration of the hover ripple in milliseconds while it grows. */
+    private static final float RIPPLE_IN = 120.0F;
+
+    /** The duration of the hover ripple in milliseconds while it fades out. */
+    private static final float RIPPLE_OUT = 420.0F;
+
+    /** The radius the ripple starts with, so that a quick movement over the component is visible. */
+    private static final float RIPPLE_MIN_START = 0.12F;
+
+    /** Below this progress the ripple restarts at the new position of the pointer. */
+    private static final float RIPPLE_RESTART = 0.2F;
 
     /** How long the component grows when it is pressed. */
     private static final long PRESS_UP = 120L;
@@ -118,14 +127,24 @@ public abstract class PhiComponent {
         boolean inside = isInside(mouseX, mouseY);
 
         if (inside && !this.hovered) {
-            this.hoverEnterX = mouseX;
-            this.hoverEnterY = mouseY;
+            // The pointer entered the component. The ripple only restarts at the new position when it
+            // has almost faded out - otherwise a quick movement over the component makes it flicker.
+            if (this.hoverProgress < RIPPLE_RESTART) {
+                this.hoverEnterX = mouseX;
+                this.hoverEnterY = mouseY;
+
+                // The ripple does not start at a single point, so it is also visible when the pointer
+                // only passes over the component for a very short time.
+                this.hoverProgress = Math.max(this.hoverProgress, RIPPLE_MIN_START);
+            }
         }
 
         this.hovered = inside;
 
-        this.hoverProgress += (inside ? 1.0F : -1.0F) * deltaMs / RIPPLE_DURATION;
-        this.hoverProgress = Math.max(0.0F, Math.min(1.0F, this.hoverProgress));
+        // The ripple grows quickly and fades out slowly. That way it stays visible long enough to be
+        // seen, even when the pointer only touches the component for a moment.
+        float speed = inside ? deltaMs / RIPPLE_IN : -deltaMs / RIPPLE_OUT;
+        this.hoverProgress = Math.max(0.0F, Math.min(1.0F, this.hoverProgress + speed));
     }
 
     /**

@@ -208,8 +208,25 @@ public class GuiPhiHub extends GuiScreen {
         float pageProgress = (float) this.categoryTransition.getValueFloat();
         float pageShift = (1.0F - pageProgress) * 38.0F * this.layout.getUiScale();
 
+        float hubX = this.layout.getHubX();
+        float hubY = this.layout.getHubY();
+        float hubWidth = this.layout.getHubWidth();
+        float hubHeight = this.layout.getHubHeight();
+        float offset = this.layout.getSkewOffset();
+
         nvg.save();
         nvg.setGlobalAlpha(pageProgress);
+
+        // The page is clipped to the window: while it slides up, the elements at its bottom would
+        // otherwise stick out of the window. The scissor is set in the sheared coordinate system of
+        // the window, so the clip follows its slanted edges. The shear is undone afterwards, the
+        // scissor itself keeps the shape it was transformed into.
+        nvg.translate(hubX + offset, hubY);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        nvg.scissor(0.0F, 0.0F, hubWidth, hubHeight);
+        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
+        nvg.translate(-(hubX + offset), -hubY);
+
         nvg.translate(0.0F, pageShift);
         this.currentCategory.draw(nvg, this.layout, mouseX, mouseY, partialTicks);
         nvg.restore();

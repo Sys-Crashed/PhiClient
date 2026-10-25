@@ -5,7 +5,8 @@ import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiChangeLogPanel;
-import org.dpdns.syscrashed.phiclient.gui.component.PhiIconButton;
+import org.dpdns.syscrashed.phiclient.gui.component.PhiChip;
+import org.dpdns.syscrashed.phiclient.gui.component.PhiGitHubPanel;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiMusicControl;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiPlayerCard;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiTipCard;
@@ -15,6 +16,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
+import org.dpdns.syscrashed.phiclient.utils.PhiGameInfo;
 
 import net.minecraft.client.Minecraft;
 
@@ -45,6 +47,9 @@ public class HomeCategory extends PhiCategory {
 
     /** The gap between two blocks. */
     private static final float GAP = 10.0F;
+
+    /** The width of the panel that links to the repository. */
+    private static final float GITHUB_PANEL_WIDTH = 190.0F;
 
     /**
      * Creates the home page.
@@ -104,14 +109,18 @@ public class HomeCategory extends PhiCategory {
         float tipRight = columnRightX + PhiSkew.SLOPE * (contentBottom - tipBottom);
 
         PhiTipCard tipCard = new PhiTipCard(tipX, tipTop, tipRight - tipX, tipBottom - tipTop, uiScale);
-        tipCard.setTools(buildTools());
+        tipCard.setActions(buildActions());
 
         this.components.add(tipCard);
 
-        // The music player in the bottom row of the left column.
+        // The bottom row of the left column: the music player and the panel of the repository next to
+        // it - they are two blocks of their own.
+        float repositoryWidth = Math.min(GITHUB_PANEL_WIDTH * uiScale, columnRightX * 0.45F);
+        float repositoryX = columnRightX - repositoryWidth;
         float musicX = contentLeft(layout, contentBottom);
 
-        this.components.add(new PhiMusicControl(musicX, musicTop, columnRightX - musicX, musicHeight, uiScale));
+        this.components.add(new PhiMusicControl(musicX, musicTop, repositoryX - gap - musicX, musicHeight, uiScale));
+        this.components.add(new PhiGitHubPanel(repositoryX, musicTop, repositoryWidth, musicHeight, uiScale));
 
         // The change log in the right column.
         this.components.add(new PhiChangeLogPanel(changeLogX, contentTop, changeLogWidth, contentHeight, uiScale));
@@ -131,65 +140,57 @@ public class HomeCategory extends PhiCategory {
     }
 
     /**
-     * Builds the quick access row of the tip card: the theme switch and the buttons that open the
-     * other pages of the hub. Every tool is a real action.
+     * Builds the actions of the three interactive chips of the tip card. Every chip does something
+     * real: it copies the address of the server, it copies the position of the player or it switches
+     * the theme.
      *
-     * @return the tools of the row.
+     * @return the actions of the chips.
      */
-    private List<PhiTipCard.Tool> buildTools() {
-        List<PhiTipCard.Tool> tools = new ArrayList<PhiTipCard.Tool>();
+    private List<PhiChip.Action> buildActions() {
+        List<PhiChip.Action> actions = new ArrayList<PhiChip.Action>();
 
-        tools.add(new PhiTipCard.Tool(PhiIcons.CONTRAST, "Theme", new PhiIconButton.Action() {
+        // Copy the address of the server.
+        actions.add(new PhiChip.Action() {
+            @Override
+            public void onClicked() {
+                String address = PhiGameInfo.getServerAddress();
+
+                showToast("Address", PhiGameInfo.copy(address) ? address : "The clipboard is not available");
+            }
+        });
+
+        // Copy the position of the player.
+        actions.add(new PhiChip.Action() {
+            @Override
+            public void onClicked() {
+                String position = PhiGameInfo.getCoordinates();
+
+                showToast("Position", PhiGameInfo.copy(position) ? position : "The clipboard is not available");
+            }
+        });
+
+        // Switch the theme.
+        actions.add(new PhiChip.Action() {
             @Override
             public void onClicked() {
                 PhiTheme.setActive(PhiTheme.isLight() ? PhiTheme.DARK : PhiTheme.LIGHT);
 
-                PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
-                toast.show("Theme", PhiTheme.isLight() ? "Light" : "Dark");
+                showToast("Theme", PhiTheme.isLight() ? "Light" : "Dark");
             }
-        }));
+        });
 
-        tools.add(new PhiTipCard.Tool(PhiIcons.MODULES, "Modules", new PhiIconButton.Action() {
-            @Override
-            public void onClicked() {
-                openPage("Modules");
-            }
-        }));
-
-        tools.add(new PhiTipCard.Tool(PhiIcons.HUD, "HUD", new PhiIconButton.Action() {
-            @Override
-            public void onClicked() {
-                openPage("HUD");
-            }
-        }));
-
-        tools.add(new PhiTipCard.Tool(PhiIcons.MUSIC, "Music", new PhiIconButton.Action() {
-            @Override
-            public void onClicked() {
-                openPage("Music");
-            }
-        }));
-
-        tools.add(new PhiTipCard.Tool(PhiIcons.SETTINGS, "Setting", new PhiIconButton.Action() {
-            @Override
-            public void onClicked() {
-                openPage("Setting");
-            }
-        }));
-
-        return tools;
+        return actions;
     }
 
     /**
-     * Opens another page of the hub.
+     * Shows a short confirmation at the top of the game window.
      *
-     * @param pageId the id of the page.
+     * @param title   the headline of the message.
+     * @param message the text of the message.
      */
-    private void openPage(String pageId) {
-        PageSwitcher switcher = getPageSwitcher();
+    private void showToast(String title, String message) {
+        PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
 
-        if (switcher != null) {
-            switcher.openPage(pageId);
-        }
+        toast.show(title, message);
     }
 }

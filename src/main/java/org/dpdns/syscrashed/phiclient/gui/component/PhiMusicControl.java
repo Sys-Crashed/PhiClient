@@ -35,9 +35,6 @@ public class PhiMusicControl extends PhiComponent {
     /** Horizontal distance between two transport buttons. */
     private static final float TRANSPORT_GAP = 6.0F;
 
-    /** Edge length of the button of the repository. */
-    private static final float REPOSITORY_SIZE = 34.0F;
-
     /** Horizontal distance between the cover and the texts. */
     private static final float TEXT_GAP = 12.0F;
 
@@ -51,8 +48,6 @@ public class PhiMusicControl extends PhiComponent {
     private final PhiIconButton previousButton;
     private final PhiIconButton playButton;
     private final PhiIconButton nextButton;
-
-    private final PhiGitHubButton repositoryButton;
 
     private final PhiProgressBar progressBar;
 
@@ -75,15 +70,11 @@ public class PhiMusicControl extends PhiComponent {
         float coverSize = Math.min(PhiMetrics.COVER_SIZE * uiScale, height - padding * 2.0F);
         float coverY = y + padding * 0.9F;
 
-        // The button of the repository is the last element of the row.
-        float repositorySize = REPOSITORY_SIZE * uiScale;
-        float repositoryX = contentRight - repositorySize;
-
         // The three transport buttons are placed symmetrically around their centre.
         float transportSize = TRANSPORT_SIZE * uiScale;
         float transportGap = TRANSPORT_GAP * uiScale;
         float transportWidth = transportSize * 3.0F + transportGap * 2.0F;
-        float transportX = repositoryX - CONTROL_GAP * uiScale - transportWidth;
+        float transportX = contentRight - transportWidth;
         float transportY = coverY + (coverSize - transportSize) * 0.5F;
 
         this.previousButton = new PhiIconButton(transportX, transportY, transportSize, transportSize,
@@ -111,9 +102,6 @@ public class PhiMusicControl extends PhiComponent {
                 PhiMusicControl.this.player.next();
             }
         });
-
-        this.repositoryButton = new PhiGitHubButton(repositoryX, coverY + (coverSize - repositorySize) * 0.5F,
-                repositorySize, repositorySize, uiScale);
 
         // The progress bar runs between the two time labels at the bottom of the area.
         float barHeight = PhiMetrics.PROGRESS_BAR_HEIGHT * uiScale;
@@ -143,24 +131,18 @@ public class PhiMusicControl extends PhiComponent {
         float coverSize = Math.min(PhiMetrics.COVER_SIZE * this.uiScale, this.height - padding * 2.0F);
         float coverY = this.y + padding * 0.9F;
 
-        nvg.drawSkewRect(contentLeft, coverY, coverSize, coverSize, radius * 0.6F, PhiTheme.level3());
-
-        // The cover is a parallelogram, so its icon sits in the centre of the shape and not in the
-        // centre of its bounding box.
-        PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F + PhiSkew.offset(coverSize) * 0.5F,
-                coverY + coverSize * 0.5F, coverSize * 0.5F, PhiTheme.accent());
+        nvg.drawRoundedRect(contentLeft, coverY, coverSize, coverSize, radius * 0.6F, PhiTheme.level3());
+        PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F, coverY + coverSize * 0.5F,
+                coverSize * 0.5F, PhiTheme.accent());
 
         // Title and artist behind the cover. The column of the texts ends in front of the transport
         // buttons, so the texts can never run into them.
         float transportSize = TRANSPORT_SIZE * this.uiScale;
-        float repositorySize = REPOSITORY_SIZE * this.uiScale;
         float transportGap = TRANSPORT_GAP * this.uiScale;
         float transportWidth = transportSize * 3.0F + transportGap * 2.0F;
 
-        // The cover leans to the right, so the texts have to start behind its upper right corner.
-        float textX = contentLeft + coverSize + PhiSkew.offset(coverSize) + TEXT_GAP * this.uiScale;
-        float textRight = contentRight - repositorySize - CONTROL_GAP * this.uiScale - transportWidth
-                - CONTROL_GAP * this.uiScale;
+        float textX = contentLeft + coverSize + TEXT_GAP * this.uiScale;
+        float textRight = contentRight - transportWidth - CONTROL_GAP * this.uiScale;
         float textWidth = Math.max(0.0F, textRight - textX);
 
         String counter = this.player.getTrackCount() + " tracks";
@@ -214,7 +196,6 @@ public class PhiMusicControl extends PhiComponent {
         this.previousButton.draw(nvg, mouseX, mouseY, partialTicks);
         this.playButton.draw(nvg, mouseX, mouseY, partialTicks);
         this.nextButton.draw(nvg, mouseX, mouseY, partialTicks);
-        this.repositoryButton.draw(nvg, mouseX, mouseY, partialTicks);
         this.progressBar.draw(nvg, mouseX, mouseY, partialTicks);
     }
 
@@ -223,7 +204,6 @@ public class PhiMusicControl extends PhiComponent {
         this.previousButton.mouseClicked(mouseX, mouseY, mouseButton);
         this.playButton.mouseClicked(mouseX, mouseY, mouseButton);
         this.nextButton.mouseClicked(mouseX, mouseY, mouseButton);
-        this.repositoryButton.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
     /**

@@ -113,9 +113,10 @@ public class PhiPlayerCard extends PhiComponent {
 
         float centerY = this.y + this.height * 0.5F;
 
-        // Background of the card.
+        // Background of the card. The gradient only uses two neighbouring levels: in the light theme a
+        // gradient down to the window level looks dirty, because the card would fade into the window.
         nvg.drawSkewRectGradient(this.x, this.y, this.width, this.height, radius,
-                PhiTheme.level3(), PhiTheme.level1());
+                PhiTheme.level3(), PhiTheme.level2());
 
         if (this.customBackground) {
             nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiThemeUtils.scrim());

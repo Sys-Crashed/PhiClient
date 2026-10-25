@@ -10,9 +10,9 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * A button that shows a single vector icon (package
  * {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>The button uses the global shape of the interface (a rounded parallelogram with 75 / 105 degree
- * angles) and has no outline: the background level expresses the hover state, the icon color the
- * enabled state.</p>
+ * <p>The button is an upright rectangle: the buttons of the music area stand next to each other and a
+ * row of leaning buttons would not look even. It has no outline: the background level expresses the
+ * hover state, the icon color the enabled state.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -84,33 +84,18 @@ public class PhiIconButton extends PhiComponent {
         int background = isHovered() ? PhiTheme.level4() : PhiTheme.level3();
         float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
 
-        nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, background);
+        // The button is an upright rectangle - a row of leaning buttons would not look even.
+        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius, background);
 
         if (this.icon == null) {
             return;
         }
 
-        // The icon is centered in the parallelogram, so it uses the centroid instead of the box centre.
-        float offset = PhiSkew.offset(this.height);
-        float centerX = this.x + this.width * 0.5F + offset * 0.5F;
+        float centerX = this.x + this.width * 0.5F;
         float centerY = this.y + this.height * 0.5F;
         int color = this.highlighted ? PhiTheme.accent() : PhiTheme.textPrimary();
 
         this.icon.draw(nvg, centerX, centerY, this.height * 0.55F, color);
-    }
-
-    /**
-     * The button is a parallelogram, so the pointer has to be tested against the shape and not against
-     * its bounding box - otherwise the highlight would appear in the upper left corner, which is outside
-     * of the button.
-     *
-     * @param pointX the point x.
-     * @param pointY the point y.
-     * @return true if the point is inside the button.
-     */
-    @Override
-    protected boolean isInside(float pointX, float pointY) {
-        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
     }
 
     @Override
@@ -119,7 +104,7 @@ public class PhiIconButton extends PhiComponent {
             return;
         }
 
-        if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
+        if (!isInside(mouseX, mouseY)) {
             return;
         }
 
