@@ -165,14 +165,16 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         // never drifts away from it while the list is scrolled.
         float slide = PhiSkew.SLOPE * offset;
 
-        // The list is clipped to the panel, so an entry that is scrolled out of the panel cannot
-        // reach the blocks of the other column.
+        // The list is clipped to the area below the divider, so an entry that is scrolled out of the
+        // list cannot reach the headline of the panel - and it cannot reach the blocks of the other
+        // column either.
         nvg.save();
         float shapeOffset = PhiSkew.offset(this.height);
+        float listHeight = this.height - (listTop - this.y);
 
         nvg.translate(this.x + shapeOffset, this.y);
         nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        nvg.scissor(0.0F, 0.0F, this.width, this.height);
+        nvg.scissor(0.0F, listTop - this.y, this.width, listHeight);
         nvg.skewX(-PhiSkew.SHEAR_DEGREES);
         nvg.translate(-(this.x + shapeOffset), -this.y);
 
@@ -184,7 +186,7 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
 
             float entryHeight = Math.max(badgeHeight, wrapped.size() * lineHeight);
 
-            if (cursor + entryHeight > this.y && cursor < this.y + this.height) {
+            if (cursor + entryHeight > listTop && cursor < this.y + this.height) {
                 // The anchor of the entry follows the diagonal, so the badge and its text keep the
                 // same distance to each other and to the border of the panel.
                 float anchorX = anchors.get(i) + slide;
