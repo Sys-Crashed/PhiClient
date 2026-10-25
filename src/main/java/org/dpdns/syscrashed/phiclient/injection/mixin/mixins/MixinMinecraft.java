@@ -12,15 +12,18 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.Display;
 
 /**
- * 对原版 {@link Minecraft} 的织入，是 PhiClient 的「第二层入口」：
+ * Mixin onto vanilla {@link Minecraft}; the second entry layer for PhiClient
+ * (package {@code org.dpdns.syscrashed.phiclient.injection.mixin.mixins}).
  *
- * - {@code createDisplay}：窗口创建完成后改写窗口标题（原版写死的 "Minecraft 1.8.9"）；
- * - {@code startGame}：在 ingameGUI 字段赋值之后触发 {@link PhiClient#start()}（真正的业务初始化起点）；
- * - {@code runTick}：每帧末尾派发 {@link EventTick}，打通事件总线闭环；
- * - {@code shutdownMinecraftApplet}：触发 {@link PhiClient#stop()}。
+ * <ul>
+ *   <li>{@code createDisplay}: rewrites the window title after the display is created (vanilla hard-codes "Minecraft 1.8.9").</li>
+ *   <li>{@code startGame}: triggers {@link PhiClient#start()} after the {@code ingameGUI} field is assigned (the real business init point).</li>
+ *   <li>{@code runTick}: dispatches {@link EventTick} at the end of every frame, closing the event-bus loop.</li>
+ *   <li>{@code shutdownMinecraftApplet}: triggers {@link PhiClient#stop()}.</li>
+ * </ul>
  *
- * 新增功能请按「Mixin 钩生命周期 → 派发事件 → 模块监听」的方式扩展，
- * 不要把业务逻辑直接堆在这里。
+ * <p>Extend by "Mixin hooks a lifecycle -&gt; dispatches an event -&gt; a module listens", rather than
+ * piling business logic directly into this class.</p>
  */
 @Mixin(Minecraft.class)
 public class MixinMinecraft {

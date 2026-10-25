@@ -1,7 +1,15 @@
 package org.dpdns.syscrashed.phiclient.utils.animation;
 
 /**
- * 三次缓出（ease-out cubic）：起步快、收尾稳，适合界面入场。
+ * Ease-out cubic interpolation (package {@code org.dpdns.syscrashed.phiclient.utils.animation}).
+ *
+ * <p>Fast at the start and gentle at the end; suitable for UI entrance animations. The easing curve
+ * maps a normalized progress in {@code [0, 1]} to an eased progress in {@code [0, 1]}.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #getEquation(double)} - the cubic ease-out curve implementation.</li>
+ * </ul>
  */
 public class EaseOutCubic extends Animation {
 

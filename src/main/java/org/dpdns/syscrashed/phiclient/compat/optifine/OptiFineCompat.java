@@ -9,33 +9,48 @@ import net.minecraft.launchwrapper.LaunchClassLoader;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 /**
- * OptiFine（1.8.9 HD U M5）运行时兼容层。
+ * Runtime compatibility layer for OptiFine (1.8.9 HD U M5)
+ * (package {@code org.dpdns.syscrashed.phiclient.compat.optifine}).
  *
- * <p>为什么全部用反射：
+ * <p>Why everything is reflection-based:</p>
  * <ul>
- *   <li>开发环境跑的是 SRG（MCP）命名的 Minecraft，而 OptiFine 的 {@code patch/*.xdelta}
- *       是对<strong>混淆（notch）类名 + 原始字节 MD5</strong>做的二进制增量补丁，
- *       所以 OptiFine 在开发环境下不可能生效，也不应该进编译期依赖；</li>
- *   <li>发布环境（玩家手上真实混淆过的 1.8.9）才有这些类和那些 patch。</li>
+ *   <li>the dev environment runs SRG (MCP) named Minecraft, while OptiFine's {@code patch/*.xdelta}
+ *       are binary delta patches against <strong>obfuscated (notch) class names + original byte MD5</strong>,
+ *       so OptiFine cannot take effect (and should not be a compile-time dependency) in dev;</li>
+ *   <li>only the release environment (the real obfuscated 1.8.9 on the player's machine) has those
+ *       classes and the patches.</li>
  * </ul>
- * 因此本类与 OptiFine 的一切交互都必须"按需反射 + 失败静默降级"。
+ *
+ * <p>Therefore every interaction with OptiFine here must be "reflect on demand + fail silently / degrade".</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #detectOptiFine()} - early existence check via resources (no class loading).</li>
+ *   <li>{@link #hook(LaunchClassLoader)} - registers OptiFine's class transformer onto LaunchWrapper, before Mixin init.</li>
+ *   <li>{@link #isOptiFineDetected()} - cached result of {@link #detectOptiFine()}.</li>
+ *   <li>{@link #isOptiFineOnClasspath()} - live re-check of OptiFine presence (needed under Forge).</li>
+ *   <li>{@link #isLoaded()} / {@link #getVersion()} - runtime availability and version string.</li>
+ *   <li>{@link #isFastRenderEnabled()} / {@link #isShadersEnabled()} - feature flags.</li>
+ *   <li>{@link #setFastRenderEnabled(boolean)} - toggles OptiFine fast render (custom 2D rendering usually needs it off).</li>
+ * </ul>
  */
 public final class OptiFineCompat {
 
-    /** OptiFine 的类转换器；{@code optifine.OptiFineTweaker} 做的唯一一件事就是注册它。 */
+    /** OptiFine's class transformer; the only thing {@code optifine.OptiFineTweaker} does is register it. */
     private static final String CLASS_TRANSFORMER = "optifine.OptiFineClassTransformer";
-    /** OptiFine 的主配置类，位于默认包下（如 {@code Config.getVersion()} / {@code isFastRender()}）。 */
+    /** OptiFine's main config class, in the default package (e.g. {@code Config.getVersion()} / {@code isFastRender()}). */
     private static final String CLASS_CONFIG = "Config";
-    /** OptiFine 注入到 GameSettings 里的"快速渲染"开关字段名（混淆环境仍保留此名）。 */
+    /** The "fast render" switch field injected into GameSettings (this name survives obfuscation). */
     private static final String FIELD_FAST_RENDER = "ofFastRender";
-    /** 转换器类的资源路径（探测用：只查资源不会触发类加载）。 */
+    /** The transformer class's resource path (used for probing; checking the resource never triggers class loading). */
     static final String RESOURCE_TRANSFORMER = "optifine/OptiFineClassTransformer.class";
     /**
-     * 交给 {@code LaunchClassLoader#addClassLoaderExclusion} 的前缀。
+     * The prefix handed to {@code LaunchClassLoader#addClassLoaderExclusion}.
      *
-     * <p>与 launchwrapper 处理 {@code --tweakClass optifine.OptiFineTweaker} 时算出来的完全一致
-     * （包名，不带末尾的点）。注意不要写成 {@code net.optifine}：那个包下的类仍需由
-     * LaunchClassLoader 加载，否则以后加 {@code @Pseudo} mixin 会失效。
+     * <p>This matches exactly what launchwrapper computes when handling
+     * {@code --tweakClass optifine.OptiFineTweaker} (the package name, no trailing dot). Do <b>not</b> write
+     * {@code net.optifine}: classes under that package still must be loaded by LaunchClassLoader, otherwise
+     * future {@code @Pseudo} mixins would fail.</p>
      */
     private static final String EXCLUSION_OPTIFINE = "optifine";
 
@@ -47,10 +62,13 @@ public final class OptiFineCompat {
     }
 
     /**
-     * 早期存在性检测（在 tweaker 最早的回调里判断 OptiFine 是否已就绪）。
+     * Early existence probe (decides whether OptiFine is ready, in the tweaker's earliest callback).
      *
-     * <p>检测点是资源 {@code optifine/OptiFineClassTransformer.class}：
-     * 它在 OptiFine 的 jar 里始终存在，且不依赖游戏是否已启动，因此适合放在 tweaker 最早的回调里判断。
+     * <p>The probe point is the resource {@code optifine/OptiFineClassTransformer.class}: it is always present
+     * in OptiFine's jar, is independent of whether the game has started, and so is safe to check in the
+     * tweaker's earliest callback.</p>
+     *
+     * @return true if OptiFine was found on the classpath.
      */
     public static boolean detectOptiFine() {
         detected = findOptiFineResource() != null;
@@ -58,11 +76,13 @@ public final class OptiFineCompat {
     }
 
     /**
-     * 只按资源探测，不 {@code Class.forName}。
+     * Probes by resource only - never calls {@code Class.forName}.
      *
-     * <p>原因：一旦在 {@code addClassLoaderExclusion} 之前用 LaunchClassLoader 把 OptiFine 的类
-     * 加载进来，它就被缓存成"LaunchClassLoader 定义"的版本了，后面再排除也来不及，
-     * 于是转换器照样拿不到 {@code file:} 形式的 CodeSource。
+     * <p>Reason: once OptiFine's class is loaded by LaunchClassLoader <em>before</em>
+     * {@code addClassLoaderExclusion}, it is cached as "defined by LaunchClassLoader", and excluding it
+     * afterwards is too late - the transformer then cannot obtain a {@code file:} CodeSource.</p>
+     *
+     * @return the resource URL, or {@code null} if not found.
      */
     private static java.net.URL findOptiFineResource() {
         try {
@@ -85,13 +105,15 @@ public final class OptiFineCompat {
     }
 
     /**
-     * 尝试把 OptiFine 的类转换器挂到 LaunchWrapper 的转换链上。
+     * Attempts to register OptiFine's class transformer onto the LaunchWrapper transform chain.
      *
-     * <p>必须由 {@code PhiTweaker#injectIntoClassLoader} 在 <strong>Mixin 初始化之前</strong>调用：
-     * OptiFine 的增量补丁是针对"未被修改过的原版字节"做的（带 MD5 校验），
-     * 若先被 Mixin 改过就可能对不上；正确顺序是 OptiFine 先打补丁，再由 Mixin 织入。
+     * <p>Must be called by {@code PhiTweaker#injectIntoClassLoader} <strong>before</strong> Mixin is
+     * initialized: OptiFine's delta patches target the <em>unmodified</em> vanilla bytes (with MD5
+     * verification), so applying Mixin first would mis-match; the correct order is OptiFine patches, then
+     * Mixin weaves.</p>
      *
-     * @return true 表示 OptiFine 已可用（本次注册成功，或已被其它 tweaker 注册）
+     * @param classLoader the LaunchClassLoader to register the transformer on.
+     * @return true if OptiFine is usable (registered now, or already registered by another tweaker).
      */
     public static boolean hook(LaunchClassLoader classLoader) {
         if (hookChecked) {
@@ -100,11 +122,11 @@ public final class OptiFineCompat {
         hookChecked = true;
 
         try {
-            // 1) 【关键一步】让 optifine.* 改由父加载器（系统 classpath）加载。
-            //    这正是 launchwrapper 为 --tweakClass optifine.OptiFineTweaker 做的事：
-            //    Launch.java:97 → classLoader.addClassLoaderExclusion("optifine")。
-            //    少了这一步，optifine.* 会由 LaunchClassLoader 自己 define，
-            //    CodeSource 变成 jar 条目 URL，OptiFine 立刻 "Can not find the OptiFine JAR" 并失效。
+            // 1) [Critical step] Make optifine.* load from the parent loader (system classpath) instead.
+            //    This is exactly what launchwrapper does for --tweakClass optifine.OptiFineTweaker:
+            //    Launch.java:97 -> classLoader.addClassLoaderExclusion("optifine").
+            //    Without this, optifine.* is defined by LaunchClassLoader itself, its CodeSource becomes a
+            //    jar-entry URL and OptiFine immediately fails with "Can not find the OptiFine JAR".
             if (OptiFineProvisioner.isVisibleToSystemClassLoader()) {
                 classLoader.addClassLoaderExclusion(EXCLUSION_OPTIFINE);
             } else {
@@ -114,12 +136,9 @@ public final class OptiFineCompat {
 
             Class<?> transformerClass = Class.forName(CLASS_TRANSFORMER, false, classLoader);
 
-            /**
-             *  OptiFineClassTransformer 在构造时把自己的实例写进静态字段 instance。
-             *  若已经被别的入口（例如额外传了 --tweakClass optifine.OptiFineTweaker）注册过，
-             *  这里就不要重复注册，否则同一个类会被打两次补丁。
-             */
-
+            // OptiFineClassTransformer writes its own instance into the static field `instance` on construction.
+            // If another entry (e.g. an extra --tweakClass optifine.OptiFineTweaker) already registered it,
+            // do not register again, or the same class would be patched twice.
             Field instanceField = transformerClass.getField("instance");
             if (instanceField.get(null) != null) {
                 hooked = true;
@@ -133,7 +152,7 @@ public final class OptiFineCompat {
                         + "(it could not locate its own jar).");
             }
         } catch (ClassNotFoundException ignored) {
-            // classpath 上没有 OptiFine（开发环境即如此），属于正常情况
+            // No OptiFine on the classpath (the dev environment is exactly this case) - expected.
             hooked = false;
         } catch (Throwable throwable) {
             hooked = false;
@@ -144,31 +163,40 @@ public final class OptiFineCompat {
     }
 
     /**
-     * {@link #detectOptiFine()} 的检测结果：classpath 上是否已存在 OptiFine。
+     * The cached result of {@link #detectOptiFine()}: whether OptiFine exists on the classpath.
      *
-     * <p>用于避免重复加载 —— 用户已经用 OptiFine 安装器装过时，我们就不该再把内置的那份解压挂上去。
+     * <p>Used to avoid double-loading: when the user already installed OptiFine with its installer, we
+     * should not extract and mount our bundled copy.</p>
+     *
+     * @return the cached detection result.
      */
     public static boolean isOptiFineDetected() {
         return detected;
     }
 
     /**
-     * 实时检查 classpath 上是否已存在 OptiFine。
+     * Live re-check of whether OptiFine is on the classpath.
      *
-     * <p>不能只信 {@link #isOptiFineDetected()} 的缓存结果：在 Forge 环境下 FML 是在
-     * {@code injectIntoClassLoader} 阶段才把 mods 里的 jar 加进类加载器的，
-     * 而我们更早的 {@code acceptOptions} 阶段去检测必然失败（会错误地缓存成"没有 OptiFine"）。
+     * <p>Do not trust only {@link #isOptiFineDetected()}'s cached result: under Forge, FML adds the mods'
+     * jars to the class loader during {@code injectIntoClassLoader}, which is <em>later</em> than our
+     * earlier {@code acceptOptions} check - that check would wrongly cache "no OptiFine".</p>
+     *
+     * @return true if OptiFine can currently be found.
      */
     public static boolean isOptiFineOnClasspath() {
         return findOptiFineResource() != null;
     }
 
-    /** OptiFine 是否真的可用。 */
+    /**
+     * @return true if OptiFine is actually usable.
+     */
     public static boolean isLoaded() {
         return hooked || detected || findConfigClass() != null;
     }
 
-    /** 形如 {@code OptiFine_1.8.9_HD_U_M5}；不可用则返回 null。 */
+    /**
+     * @return the OptiFine version string, e.g. {@code OptiFine_1.8.9_HD_U_M5}; null if unavailable.
+     */
     public static String getVersion() {
         Class<?> config = findConfigClass();
         if (config == null) {
@@ -179,21 +207,29 @@ public final class OptiFineCompat {
         return version == null ? null : String.valueOf(version);
     }
 
-    /** 是否开启了 OptiFine 的"快速渲染"（多线程渲染，与多数自定义 2D 渲染冲突）。 */
+    /**
+     * @return whether OptiFine's "fast render" (multi-threaded rendering, conflicts with most custom 2D rendering) is on.
+     */
     public static boolean isFastRenderEnabled() {
         return readBooleanFlag("isFastRender");
     }
 
-    /** 是否正在使用光影着色器。 */
+    /**
+     * @return whether OptiFine shaders are currently active.
+     */
     public static boolean isShadersEnabled() {
         return readBooleanFlag("isShaders");
     }
 
     /**
-     * 打开/关闭 OptiFine 的"快速渲染"。
+     * Enables / disables OptiFine's "fast render".
      *
-     * <p>自定义渲染（后续如 NanoVG / 自绘 HUD）一般需要关掉它，否则渲染状态会被线程破坏。
-     * 注意 OptiFine 会在每次进入视频设置时重新读取配置，需要在合适时机反复调用。
+     * <p>Custom rendering (e.g. NanoVG / self-drawn HUD) generally needs this off, otherwise the render
+     * state is corrupted by the extra thread. Note OptiFine re-reads the config every time the video
+     * settings screen is opened, so this may need to be re-applied at the right moment.</p>
+     *
+     * @param enabled the desired fast-render state.
+     * @return true if the flag was set successfully.
      */
     public static boolean setFastRenderEnabled(boolean enabled) {
         try {
@@ -216,6 +252,12 @@ public final class OptiFineCompat {
         }
     }
 
+    /**
+     * Reads a boolean flag by invoking a no-arg static method on the OptiFine config class.
+     *
+     * @param methodName the method name (e.g. {@code isFastRender}).
+     * @return the boolean value, or false if OptiFine is unavailable / the call fails.
+     */
     private static boolean readBooleanFlag(String methodName) {
         Class<?> config = findConfigClass();
         if (config == null) {
@@ -226,6 +268,9 @@ public final class OptiFineCompat {
         return value instanceof Boolean && (Boolean) value;
     }
 
+    /**
+     * Resolves the OptiFine config class (default package), or {@code null} if not present.
+     */
     private static Class<?> findConfigClass() {
         try {
             return Class.forName(CLASS_CONFIG);
@@ -234,6 +279,9 @@ public final class OptiFineCompat {
         }
     }
 
+    /**
+     * Invokes a no-arg static method and returns its result (or {@code null} on failure).
+     */
     private static Object invokeStatic(Class<?> owner, String methodName) {
         try {
             Method method = owner.getMethod(methodName);
@@ -243,6 +291,9 @@ public final class OptiFineCompat {
         }
     }
 
+    /**
+     * Finds a field by name, walking up the superclass chain.
+     */
     private static Field findField(Class<?> owner, String name) {
         Class<?> current = owner;
         while (current != null) {

@@ -7,13 +7,20 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记一个方法为事件监听器。
- * <p>
- * 被标记的方法必须满足：
- * 1. 恰好有 1 个参数；
- * 2. 该参数是 {@link PhiEvent} 的子类。
- * <p>
- * 不满足条件的方法会在注册时被跳过（并输出一条警告）。
+ * Marks a method as an event listener (package {@code org.dpdns.syscrashed.phiclient.management.event}).
+ *
+ * <p>The annotated method must satisfy:</p>
+ * <ol>
+ *   <li>it has exactly one parameter;</li>
+ *   <li>that parameter is a subclass of {@link PhiEvent}.</li>
+ * </ol>
+ *
+ * <p>Methods that do not satisfy these are skipped at registration time (with a warning logged).</p>
+ *
+ * <p>Provided members:</p>
+ * <ul>
+ *   <li>{@link #priority()} - the listener priority; lower values run first.</li>
+ * </ul>
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
@@ -21,7 +28,9 @@ import java.lang.annotation.Target;
 public @interface EventTarget {
 
     /**
-     * 监听器优先级，数值越小越先执行。
+     * Listener priority. Lower numbers are invoked earlier.
+     *
+     * @return the priority value.
      */
     int priority() default 0;
 }

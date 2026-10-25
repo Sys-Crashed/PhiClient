@@ -1,25 +1,44 @@
 package org.dpdns.syscrashed.phiclient.gui.screen.category;
 
-import org.dpdns.syscrashed.phiclient.gui.component.PhiCard;
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 
 /**
- * 模块分类：目前只是占位卡片，等模块系统落地后替换为真实的开关 / 滑块组件。
+ * The modules page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
+ *
+ * <p>The page shows the placeholders of the module system: the list of the modules, the components that
+ * build them (toggle, slider, keybind) and the search field. The module system itself is implemented in
+ * a later stage.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #layout(PhiHubLayout)} - builds the cards of the page.</li>
+ * </ul>
  */
 public class ModulesCategory extends PhiCategory {
 
+    /**
+     * Creates the modules page.
+     */
     public ModulesCategory() {
-        super("Modules", "M");
+        super("Modules", PhiIcons.MODULES);
     }
 
     @Override
-    public void init(float contentWidth) {
-        this.components.clear();
+    public void layout(PhiHubLayout layout) {
+        clearComponents();
 
-        float cardWidth = contentWidth - 20.0F;
+        float cardHeight = PhiMetrics.CARD_HEIGHT * layout.getUiScale();
+        float spacing = PhiMetrics.CARD_SPACING * layout.getUiScale();
+        float top = layout.getHubY() + layout.getPadding();
 
-        this.components.add(new PhiCard(0.0F, 0.0F, cardWidth, 38.0F,
-                "Module list", "No module loaded yet", "0"));
-        this.components.add(new PhiCard(0.0F, 46.0F, cardWidth, 38.0F,
-                "Components", "Toggle / Slider / Keybind", "Soon"));
+        addCard(layout, top, cardHeight, "Module list", "The modules of the client with their state", "Planned");
+
+        top += cardHeight + spacing;
+        addCard(layout, top, cardHeight, "Components", "Toggle / Slider / Keybind", "Planned");
+
+        top += cardHeight + spacing;
+        addCard(layout, top, cardHeight, "Search", "Filter the modules by their name", "Planned");
     }
 }

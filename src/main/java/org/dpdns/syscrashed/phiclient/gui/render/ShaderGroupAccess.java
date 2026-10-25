@@ -9,22 +9,34 @@ import net.minecraft.client.shader.Shader;
 import net.minecraft.client.shader.ShaderGroup;
 
 /**
- * 取 {@link ShaderGroup} 内部的 shader 列表。
+ * Reads the internal shader list of a {@link ShaderGroup}
+ * (package {@code org.dpdns.syscrashed.phiclient.gui.render}).
  *
- * <p>1.8.9 的 ShaderGroup 没有公开的 getter，如果用 mixin 把私有字段
- * {@code listShaders} 暴露出来，会依赖 mixin refmap 里的<b>字段</b>映射
- * （本项目的 Mixin AP 只为 MixinMinecraft 生成了方法 / 字段映射，没有为
- * MixinShaderGroup 生成 {@code listShaders} 的映射），在混淆环境下会找不到字段。
+ * <p>MC 1.8.9's {@link ShaderGroup} has no public getter. Exposing the private {@code listShaders}
+ * field through a Mixin would depend on a <b>field</b> mapping in the Mixin refmap (this project only
+ * generates method / field mappings for MixinMinecraft, so a MixinShaderGroup mapping for
+ * {@code listShaders} would be missing) and would fail to resolve in the obfuscated environment.</p>
  *
- * <p>所以这里改成按<b>类型</b>反射：遍历 ShaderGroup 的 List 型字段，取出其中第一个
- * 元素是 {@link Shader} 的那个。这样既不依赖字段名，也就不受混淆 / 重映射影响，
- * dev（SRG）与真机（notch）通用。
+ * <p>Instead we reflect by <b>type</b>: iterate the {@code List}-typed fields of {@link ShaderGroup} and
+ * return the first one whose elements are {@link Shader}. This depends on neither the field name nor
+ * obfuscation / remapping, so it works in both dev (SRG) and release (notch) builds.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #getShaders(ShaderGroup)} - returns the shader list, or {@code null} if it cannot be located.</li>
+ * </ul>
  */
 final class ShaderGroupAccess {
 
     private ShaderGroupAccess() {
     }
 
+    /**
+     * Locates and returns the shader list inside a {@link ShaderGroup}.
+     *
+     * @param group the shader group to inspect; may be {@code null} (returns {@code null}).
+     * @return the shader list, or {@code null} if none could be found (a warning is logged then).
+     */
     @SuppressWarnings("unchecked")
     static List<Shader> getShaders(ShaderGroup group) {
         if (group == null) {

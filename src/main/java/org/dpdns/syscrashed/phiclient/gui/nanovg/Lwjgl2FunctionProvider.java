@@ -7,30 +7,39 @@ import org.lwjgl.opengl.GLContext;
 import org.lwjgl.system.FunctionProvider;
 
 /**
- * 把 LWJGL 2 的 {@code GLContext#getFunctionAddress} 包装成 LWJGL 3 的 {@link FunctionProvider}，
- * 供 NanoVG 的原生代码填充它的 GL 函数指针表。
+ * Adapts LWJGL 2's {@code GLContext#getFunctionAddress} to LWJGL 3's {@link FunctionProvider},
+ * so NanoVG's native code can fill its GL function-pointer table
+ * (package {@code org.dpdns.syscrashed.phiclient.gui.nanovg}).
  *
- * <p>为什么需要它：NanoVG（LWJGL 3 的 {@code org.lwjgl.nanovg} 绑定）在 GL2 后端创建上下文时，
- * 会回调 {@code NanoVGGLConfig.configGL(long)} 来取 GL 函数指针。原版 LWJGL 3 在这里通过
- * {@code Class.forName("org.lwjgl.opengl.GL")} 拿自己的 GL 模块，但 Minecraft 1.8.9 跑的是 LWJGL 2，
- * 没法直接用。
+ * <p>Why this is needed: NanoVG (the LWJGL 3 {@code org.lwjgl.nanovg} binding), when creating a GL2
+ * context, calls back {@code NanoVGGLConfig.configGL(long)} to obtain GL function pointers. The stock
+ * LWJGL 3 implementation resolves its own GL module via {@code Class.forName("org.lwjgl.opengl.GL")},
+ * but Minecraft 1.8.9 runs on LWJGL 2, so that fails.</p>
  *
- * <p>我们用 {@link org.dpdns.syscrashed.phiclient.injection.transformer.LwjglTransformer} 在字节码层面
- * 把 {@code NanoVGGLConfig.configGL} 改成直接 {@code config(addr, new Lwjgl2FunctionProvider())}，
- * 从而完全绕过那个 {@code Class.forName("org.lwjgl.opengl.GL")} —— 这样本类可以放在任意包下，
- * 不会和 LWJGL 2 的 {@code org.lwjgl.opengl} 撞 security seal。
+ * <p>We instead use {@link org.dpdns.syscrashed.phiclient.injection.transformer.LwjglTransformer} to
+ * rewrite {@code NanoVGGLConfig.configGL} at the bytecode level to call
+ * {@code config(addr, new Lwjgl2FunctionProvider())}, fully bypassing the
+ * {@code Class.forName("org.lwjgl.opengl.GL")} lookup. This class can therefore live in any package
+ * without colliding with LWJGL 2's {@code org.lwjgl.opengl} security seal.</p>
  *
- * <p>采用严格模式（构造/取地址失败直接抛异常）：GL2 级别的这几个函数在 LWJGL 2 上下文里一定存在，
- * 一旦拿不到说明环境异常，早点失败比拿到 NULL 指针让 NanoVG 莫名其妙崩更好定位。
+ * <p>Strict mode is used (constructing / resolving a missing address throws): these GL2-level
+ * functions are guaranteed to exist in an LWJGL 2 context, so a missing pointer means the
+ * environment is broken and failing early is easier to diagnose than a NULL dereference inside NanoVG.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #getFunctionAddress(CharSequence)} - resolves a GL function by name (used by NanoVG).</li>
+ *   <li>{@link #getFunctionAddress(ByteBuffer)} - unsupported overload (throws).</li>
+ * </ul>
  */
 public final class Lwjgl2FunctionProvider implements FunctionProvider {
 
-    private final Method m_getFunctionAddress;
+    private final Method functionAddressMethod;
 
     public Lwjgl2FunctionProvider() {
         try {
-            m_getFunctionAddress = GLContext.class.getDeclaredMethod("getFunctionAddress", String.class);
-            m_getFunctionAddress.setAccessible(true);
+            functionAddressMethod = GLContext.class.getDeclaredMethod("getFunctionAddress", String.class);
+            functionAddressMethod.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -39,7 +48,7 @@ public final class Lwjgl2FunctionProvider implements FunctionProvider {
     @Override
     public long getFunctionAddress(CharSequence functionName) {
         try {
-            return (long) m_getFunctionAddress.invoke(null, functionName.toString());
+            return (long) functionAddressMethod.invoke(null, functionName.toString());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

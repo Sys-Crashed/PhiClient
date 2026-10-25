@@ -7,16 +7,24 @@ import org.dpdns.syscrashed.phiclient.utils.ResourceUtils;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
- * 把 {@link Fonts} 里的字体注册进 NanoVG 上下文。
+ * Registers the fonts from {@link Fonts} into a NanoVG context
+ * (package {@code org.dpdns.syscrashed.phiclient.gui.nanovg.font}).
  *
- * <p>把 {@link Fonts} 里的字体注册进 NanoVG 上下文。
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #init(long)} - registers every font in {@link Fonts} into the given NanoVG context.</li>
+ * </ul>
  */
 public final class FontManager {
 
     /**
-     * 在给定上下文中注册全部字体。
+     * Registers all known fonts into the given NanoVG context.
      *
-     * <p>必须在 NanoVG 上下文创建之后调用。
+     * <p>Must be called after the NanoVG context has been created. Each font is read from the
+     * classpath and registered with {@code nvgCreateFontMem(..., freeData = false)}, so the {@link Font}
+     * keeps ownership of the buffer.</p>
+     *
+     * @param context the NanoVG context handle (as returned by {@code nvgCreate}).
      */
     public void init(long context) {
         for (Font font : Fonts.getFonts()) {
@@ -24,6 +32,12 @@ public final class FontManager {
         }
     }
 
+    /**
+     * Loads a single font into the context (skips it if already loaded).
+     *
+     * @param context the NanoVG context handle.
+     * @param font    the font to register.
+     */
     private void load(long context, Font font) {
         if (font.isLoaded()) {
             return;
@@ -35,7 +49,7 @@ public final class FontManager {
             return;
         }
 
-        // freeData = false：字体数据由 Font 持有，NanoVG 只借用指针
+        // freeData = false: the font data is owned by Font and only borrowed by NanoVG.
         int id = NanoVG.nvgCreateFontMem(context, font.getName(), buffer, false);
         if (id < 0) {
             PhiLogger.error("Failed to create NanoVG font: " + font.getName());

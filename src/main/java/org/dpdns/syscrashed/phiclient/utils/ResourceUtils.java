@@ -9,15 +9,23 @@ import java.nio.ByteOrder;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 /**
- * 资源读取工具：把 jar / classpath 里的资源读成直接内存 ByteBuffer。
+ * Resource loading helpers for PhiClient (package {@code org.dpdns.syscrashed.phiclient.utils}).
  *
- * <p>刻意<b>不</b>走 Minecraft 的 ResourceManager：1.8.9 的 DefaultResourcePack 只认
- * {@code minecraft} 这一个 domain，而且 classpath 兜底用的是 {@code ClassLoader.getSystemResourceAsStream}
- * —— 在 dev 环境（ForgeGradle 用自定义类加载器跑）里系统 classpath 根本不含我们的资源，
- * 界面字体就会读不到。直接用自己的类去 getResourceAsStream 则 dev / 真机都成立。
+ * <p>Reads a resource from the classpath / jar into an off-heap {@link ByteBuffer}.
+ * This deliberately does <b>not</b> go through Minecraft's {@code ResourceManager}: the 1.8.9
+ * {@code DefaultResourcePack} only knows the {@code minecraft} domain, and its classpath fallback
+ * uses {@code ClassLoader.getSystemResourceAsStream} - in a dev environment (ForgeGradle runs the
+ * game with a custom class loader) the system classpath does not contain our resources, so the UI
+ * fonts would fail to load. Reading via our own class {@code getResourceAsStream} works in both dev
+ * and release builds.</p>
  *
- * <p>必须是 <b>直接内存 + nativeOrder</b>：NanoVG 的 {@code nvgCreateFontMem} 会直接拿这个
- * 指针去解析 TTF，普通堆内 ByteBuffer 的地址是无效的。
+ * <p>The buffer must be <b>direct + native-order</b>: NanoVG's {@code nvgCreateFontMem} takes this
+ * pointer directly to parse the TTF, so a normal heap {@link ByteBuffer}'s address is invalid.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #classpathToByteBuffer(String, Class)} - reads a classpath resource into a direct buffer.</li>
+ * </ul>
  */
 public final class ResourceUtils {
 
@@ -25,14 +33,22 @@ public final class ResourceUtils {
     }
 
     /**
-     * 从 classpath 读取资源（路径以 "/" 开头，例如 {@code /assets/phiclient/fonts/x.ttf}）。
+     * Reads a classpath resource into a direct, native-ordered {@link ByteBuffer}.
+     *
+     * <p>The path must start with {@code /} (e.g. {@code /assets/phiclient/fonts/x.ttf}). If the
+     * owning class cannot find the resource, the system class loader is tried as a fallback (in a
+     * release build the resources live on the system classpath).</p>
+     *
+     * @param path  the resource path, starting with {@code /}.
+     * @param owner the class used to resolve the resource (usually the calling class).
+     * @return the resource content as a direct buffer, or {@code null} if it could not be read.
      */
     public static ByteBuffer classpathToByteBuffer(String path, Class<?> owner) {
         InputStream in = null;
         try {
             in = owner.getResourceAsStream(path);
             if (in == null) {
-                // 退一步用系统加载器（真机时资源在系统 classpath 上）
+                // Fall back to the system loader (in release builds the resources sit on the system classpath).
                 in = ClassLoader.getSystemResourceAsStream(path.startsWith("/") ? path.substring(1) : path);
             }
             if (in == null) {
@@ -54,6 +70,12 @@ public final class ResourceUtils {
         }
     }
 
+    /**
+     * Wraps raw bytes into a direct, native-ordered buffer and flips it for reading.
+     *
+     * @param bytes the raw resource bytes.
+     * @return a direct buffer ready to be read from the start.
+     */
     private static ByteBuffer toDirectBuffer(byte[] bytes) {
         ByteBuffer data = ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());
         data.put(bytes);
@@ -61,6 +83,13 @@ public final class ResourceUtils {
         return data;
     }
 
+    /**
+     * Fully drains an {@link InputStream} into a byte array.
+     *
+     * @param in the stream to read.
+     * @return the complete content of the stream.
+     * @throws Exception if reading fails.
+     */
     private static byte[] readAll(InputStream in) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream(Math.max(1024, in.available()));
         byte[] buffer = new byte[8192];

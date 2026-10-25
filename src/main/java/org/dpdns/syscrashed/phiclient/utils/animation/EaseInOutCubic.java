@@ -1,7 +1,15 @@
 package org.dpdns.syscrashed.phiclient.utils.animation;
 
 /**
- * 三次缓入缓出（ease-in-out cubic）：两头慢、中间快，适合状态切换。
+ * Ease-in-out cubic interpolation (package {@code org.dpdns.syscrashed.phiclient.utils.animation}).
+ *
+ * <p>Slow at both ends and fast in the middle; suitable for state transitions. The easing curve
+ * maps a normalized progress in {@code [0, 1]} to an eased progress in {@code [0, 1]}.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #getEquation(double)} - the cubic ease-in-out curve implementation.</li>
+ * </ul>
  */
 public class EaseInOutCubic extends Animation {
 

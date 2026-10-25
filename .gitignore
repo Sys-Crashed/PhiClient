@@ -44,6 +44,10 @@ replay_pid*
 # --- agent working memory / plans (local only) ---
 .codebuddy/
 
+# --- 临时探查产物（不入库） ---
+/net/
+/nanovg_methods.txt
+
 # --- 第三方二进制：OptiFine 与 OptiFine 自带的 launchwrapper ---
 # OptiFine 的 jar 只保留 src/ 下那一份（仓库已跟踪），根目录这份是本地副本，不重复入库。
 # 二次分发授权由使用者自行确认；不想分发就删掉 src/ 下那份，构建会自动降级为「不含内置 OptiFine」。

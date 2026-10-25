@@ -6,111 +6,167 @@ import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.PhiGuiManager;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
-import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
+import org.dpdns.syscrashed.phiclient.gui.navigation.PhiNavBar;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.HomeCategory;
+import org.dpdns.syscrashed.phiclient.gui.screen.category.HudCategory;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.ModulesCategory;
+import org.dpdns.syscrashed.phiclient.gui.screen.category.MusicCategory;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.PhiCategory;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.SettingsCategory;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
 import org.dpdns.syscrashed.phiclient.utils.animation.Animation;
 import org.dpdns.syscrashed.phiclient.utils.animation.Direction;
 import org.dpdns.syscrashed.phiclient.utils.animation.EaseOutCubic;
-import org.dpdns.syscrashed.phiclient.utils.mouse.MouseUtils;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.settings.KeyBinding;
 
 /**
- * PhiClient 的中心界面 —— 按右 Shift 打开。
+ * The central hub of PhiClient - opened with the Right-Shift key
+ * (package {@code org.dpdns.syscrashed.phiclient.gui.screen}).
  *
- * <p>架构：
+ * <p>Architecture of the window (design specification):</p>
  * <ul>
- *   <li>背景是 MC shader 管线做的模糊（{@code BlurRenderer}）；</li>
- *   <li>面板、侧栏、卡片、文字全部由 NanoVG 自绘 —— <b>不</b>用 MC 的 FontRenderer，
- *       所以 MC 自己的字体完全不受影响；</li>
- *   <li>左侧 32px 侧栏放分类，右边是当前分类的内容区（组件树由 {@link PhiCategory} 组织）；</li>
- *   <li>打开 / 关闭都有缩放动画（{@link Animation}）。</li>
+ *   <li>the window is a single parallelogram with 75 / 105 degree angles whose bounding box has a 16:9
+ *       ratio and covers roughly half of the game window; its size follows the game window with a
+ *       smooth transition and it is always centered ({@link PhiHubLayout});</li>
+ *   <li>the <b>right</b> part is the content area of the active page ({@link PhiCategory}), the
+ *       <b>left</b> part is the slanted navigation band ({@link PhiNavBar});</li>
+ *   <li>the background is a Minecraft shader blur, everything else is drawn with NanoVG, so the fonts
+ *       of the game are not affected.</li>
  * </ul>
  *
- * <p>之所以做成真正的 {@link GuiScreen}：Minecraft 在 {@code currentScreen != null} 时
- * 会跳过 {@code runTick} 里的鼠标 / 键盘主循环（{@code while (Mouse.next())} 和
- * {@code while (Keyboard.next())} 都在 {@code currentScreen == null || allowUserInput} 分支里），
- * 于是玩家在游戏本体里的移动、攻击、视角等操作会被天然屏蔽 —— 这正是「打开界面后不能操作游戏」的实现方式。
+ * <p>Why a real {@link GuiScreen}: while a screen is open, Minecraft skips the raw mouse / keyboard
+ * handling of the game, so the player cannot act on the world while the hub is visible. Because this
+ * class overrides {@link #handleInput()}, it also has to dispatch the mouse events to itself
+ * (click, release and wheel) - otherwise the interface would not react to the mouse at all.</p>
+ *
+ * <p>Provided overrides:</p>
+ * <ul>
+ *   <li>{@link #initGui()} - resets the open animation.</li>
+ *   <li>{@link #drawScreen(int, int, float)} - drives the blur, the NanoVG frame and the layout.</li>
+ *   <li>{@link #mouseClicked(int, int, int)} / {@link #mouseReleased(int, int, int)} - the navigation
+ *       band and the page.</li>
+ *   <li>{@link #handleInput()} - dispatches the mouse events and recognizes ESC / Right-Shift as
+ *       "close".</li>
+ *   <li>{@link #doesGuiPauseGame()} - returns false (the game keeps running while open).</li>
+ *   <li>{@link #onGuiClosed()} - clears held keys so the player does not drift after closing.</li>
+ * </ul>
  */
 public class GuiPhiHub extends GuiScreen {
 
-    private static final int PANEL_WIDTH = 450;
-    private static final int PANEL_HEIGHT = 280;
-
-    private static final float SIDEBAR_WIDTH = 32.0F;
-    private static final float CORNER_RADIUS = 12.0F;
-    private static final float ITEM_SIZE = 21.0F;
-    private static final float ITEM_SPACING = 30.0F;
-    private static final float ITEM_TOP = 38.5F;
-    private static final float CONTENT_PADDING = 10.0F;
+    /** A single mouse wheel notch is reported with this delta by LWJGL. */
+    private static final float WHEEL_DELTA_PER_NOTCH = 120.0F;
 
     private final Minecraft mc = Minecraft.getMinecraft();
 
+    private final PhiHubLayout layout = new PhiHubLayout();
+
     private final List<PhiCategory> categories = new ArrayList<PhiCategory>();
+
+    private final PhiNavBar navBar = new PhiNavBar();
 
     private PhiCategory currentCategory;
 
     private final Animation introAnimation = new EaseOutCubic(260, 1.0D);
 
-    private int panelX;
-    private int panelY;
+    /** Animation of the current page sliding up after a navigation switch (0 = just switched). */
+    private final EaseOutCubic categoryTransition = new EaseOutCubic(320, 1.0D);
+
+    /** The width the pages were laid out for (a change triggers a re-layout). */
+    private float laidOutWidth = -1.0F;
+
+    /** The height the pages were laid out for (a change triggers a re-layout). */
+    private float laidOutHeight = -1.0F;
+
+    private long lastFrameTime;
 
     /**
-     * 打开界面的那一次右 Shift 按下可能以「重复事件」的形式漏进来，
-     * 所以在收到一次抬起之前，忽略所有右 Shift 按下。
+     * The Right-Shift press that opened the screen may leak in as a "repeat" event, so every
+     * Right-Shift press is ignored until one key release was received.
      */
     private boolean awaitingRightShiftRelease = true;
 
+    /**
+     * Creates the hub and registers the pages of the navigation band.
+     */
     public GuiPhiHub() {
-        this.categories.add(new HomeCategory());
+        HomeCategory home = new HomeCategory();
+
+        // The quick access tools of the home page open the other pages of the hub.
+        home.setPageSwitcher(new PhiCategory.PageSwitcher() {
+            @Override
+            public void openPage(String pageId) {
+                for (PhiCategory category : GuiPhiHub.this.categories) {
+                    if (category.getName().equalsIgnoreCase(pageId)) {
+                        selectCategory(category);
+                        return;
+                    }
+                }
+            }
+        });
+
+        this.categories.add(home);
         this.categories.add(new ModulesCategory());
+        this.categories.add(new MusicCategory());
         this.categories.add(new SettingsCategory());
+        this.categories.add(new HudCategory());
+
         this.currentCategory = this.categories.get(0);
+
+        this.navBar.setCategories(this.categories);
+        this.navBar.setSelected(this.currentCategory);
+        this.navBar.setSelectionListener(new PhiNavBar.SelectionListener() {
+            @Override
+            public void onCategorySelected(PhiCategory category) {
+                selectCategory(category);
+            }
+        });
     }
 
     @Override
     public void initGui() {
         super.initGui();
 
-        ScaledResolution sr = new ScaledResolution(this.mc);
-        this.panelX = (sr.getScaledWidth() / 2) - (PANEL_WIDTH / 2);
-        this.panelY = (sr.getScaledHeight() / 2) - (PANEL_HEIGHT / 2);
-
         this.introAnimation.reset();
         this.introAnimation.setDirection(Direction.FORWARDS);
-
-        float contentWidth = PANEL_WIDTH - SIDEBAR_WIDTH - CONTENT_PADDING * 2.0F;
-        for (PhiCategory category : this.categories) {
-            category.init(contentWidth);
-        }
+        this.lastFrameTime = System.currentTimeMillis();
     }
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         PhiGuiManager gui = PhiClient.getInstance().getGuiManager();
 
-        // 关闭动画播完 → 真正关掉界面
+        // Once the close animation finished, actually close the screen.
         if (this.introAnimation.isDone(Direction.BACKWARDS)) {
             this.mc.displayGuiScreen(null);
             return;
         }
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrameTime);
+        this.lastFrameTime = now;
+
+        this.layout.update(this.mc.displayWidth, this.mc.displayHeight, this.width, this.height, deltaMs);
+        updateLayout();
+
+        this.navBar.layout(this.layout);
+        this.navBar.update(mouseX, mouseY, deltaMs);
+
         float intro = (float) Math.min(1.0D, this.introAnimation.getValue());
 
-        // 1) 背景虚化（直接写回 MC 主帧缓冲，覆盖掉清晰画面）
+        // 1) Background blur (written back to MC's main framebuffer, covering the sharp scene).
         gui.getBlurRenderer().render(partialTicks, 1.0F + intro * 19.0F);
 
-        // 2) 用 NanoVG 自绘整个界面
+        // 2) Draw the whole interface with NanoVG.
         NanoVGManager nvg = gui.getNanoVGManager();
         if (!nvg.ensureReady()) {
             return;
@@ -121,82 +177,141 @@ public class GuiPhiHub extends GuiScreen {
         nvg.setupAndDraw(new Runnable() {
             @Override
             public void run() {
-                drawPanel(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                drawHub(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
             }
         }, true);
     }
 
     /**
-     * 画整个面板。坐标系是 GuiScreen 的缩放后坐标系。
+     * Draws the hub window: the window body, the navigation band, the active page and the tooltip.
+     *
+     * @param nvg          the NanoVG drawing context.
+     * @param mouseX       the pointer x.
+     * @param mouseY       the pointer y.
+     * @param partialTicks the render interpolation factor.
+     * @param intro        the progress of the open animation.
      */
-    private void drawPanel(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
+    private void drawHub(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
+        float centerX = this.layout.getHubX() + this.layout.getHubWidth() * 0.5F;
+        float centerY = this.layout.getHubY() + this.layout.getHubHeight() * 0.5F;
         float scale = 0.94F + 0.06F * intro;
-        float centerX = this.panelX + PANEL_WIDTH / 2.0F;
-        float centerY = this.panelY + PANEL_HEIGHT / 2.0F;
 
         nvg.save();
         nvg.translate(centerX, centerY);
         nvg.scale(scale, scale);
         nvg.translate(-centerX, -centerY);
 
-        // 面板主体
-        nvg.drawRoundedRect(this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, CORNER_RADIUS, PhiTheme.PANEL);
+        drawWindow(nvg);
 
-        // 侧栏（左边圆角、右边补方角，避免圆角处透出主体）
-        nvg.drawRoundedRect(this.panelX, this.panelY, SIDEBAR_WIDTH, PANEL_HEIGHT, CORNER_RADIUS, PhiTheme.PANEL_DARK);
-        nvg.drawRect(this.panelX + SIDEBAR_WIDTH - CORNER_RADIUS, this.panelY, CORNER_RADIUS, PANEL_HEIGHT, PhiTheme.PANEL_DARK);
-
-        // 侧栏顶部的 logo
-        nvg.drawGradientRoundedRect(this.panelX + 5.0F, this.panelY + 7.0F, 22.0F, 22.0F, 11.0F, PhiTheme.ACCENT, PhiTheme.ACCENT_DARK);
-        nvg.drawText("P", this.panelX + 12.5F, this.panelY + 11.0F, PhiTheme.TEXT, 14.0F, Fonts.REGULAR);
-
-        // 侧栏分类项
-        for (int i = 0; i < this.categories.size(); i++) {
-            PhiCategory category = this.categories.get(i);
-            float itemX = this.panelX + 5.5F;
-            float itemY = this.panelY + ITEM_TOP + i * ITEM_SPACING;
-            boolean selected = category == this.currentCategory;
-
-            if (selected) {
-                nvg.drawGradientRoundedRect(itemX, itemY, ITEM_SIZE, ITEM_SIZE, 4.0F, PhiTheme.ACCENT, PhiTheme.ACCENT_DARK);
-            }
-
-            float markerWidth = nvg.textWidth(category.getMarker(), 9.5F, Fonts.REGULAR);
-            nvg.drawText(category.getMarker(), itemX + (ITEM_SIZE - markerWidth) / 2.0F, itemY + 5.0F,
-                    selected ? PhiTheme.TEXT : PhiTheme.TEXT_DIM, 9.5F, Fonts.REGULAR);
-        }
-
-        // 顶栏分隔线与标题
-        nvg.drawRect(this.panelX + SIDEBAR_WIDTH, this.panelY + 30.0F, PANEL_WIDTH - SIDEBAR_WIDTH, 1.0F, PhiTheme.DIVIDER);
-        nvg.drawText(this.currentCategory.getName(),
-                this.panelX + SIDEBAR_WIDTH + CONTENT_PADDING, this.panelY + 40.0F, PhiTheme.TEXT, 13.0F, Fonts.REGULAR);
-
-        // 内容区（用 scissor 裁掉超出面板的部分）
-        float contentX = this.panelX + SIDEBAR_WIDTH + CONTENT_PADDING;
-        float contentY = this.panelY + 62.0F;
-        float contentWidth = PANEL_WIDTH - SIDEBAR_WIDTH - CONTENT_PADDING * 2.0F;
-        float contentHeight = PANEL_HEIGHT - 62.0F - CONTENT_PADDING;
+        // Content area of the active page. After a navigation switch the new page slides up from
+        // below and fades in, while the previous page is hidden immediately.
+        float pageProgress = (float) this.categoryTransition.getValueFloat();
+        float pageShift = (1.0F - pageProgress) * 38.0F * this.layout.getUiScale();
 
         nvg.save();
-        nvg.scissor(contentX, contentY, contentWidth, contentHeight);
-        this.currentCategory.draw(nvg, contentX, contentY, contentWidth, contentHeight, mouseX, mouseY, partialTicks);
-        nvg.resetScissor();
+        nvg.setGlobalAlpha(pageProgress);
+        nvg.translate(0.0F, pageShift);
+        this.currentCategory.draw(nvg, this.layout, mouseX, mouseY, partialTicks);
         nvg.restore();
+        nvg.resetGlobalAlpha();
+
+        // Navigation band entries.
+        this.navBar.draw(nvg, mouseX, mouseY, partialTicks);
+
+        nvg.restore();
+
+        // The tooltip is drawn above everything - it may overlap the content area.
+        this.navBar.drawTooltip(nvg, this.width, this.height);
+
+        // The toast confirms an action at the top of the game window.
+        PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
+        toast.update();
+        toast.draw(nvg, this.width, this.height, this.layout.getUiScale());
+    }
+
+    /**
+     * Draws the window body and the navigation band. Both are built from sheared rounded rectangles,
+     * so the band shares the exact corner arcs of the window it is placed in.
+     *
+     * <p>While the theme changes, the window is not simply cross faded: it is wiped diagonally from the
+     * lower left corner to the upper right corner.</p>
+     */
+    private void drawWindow(NanoVGManager nvg) {
+        float hubX = this.layout.getHubX();
+        float hubY = this.layout.getHubY();
+        float hubWidth = this.layout.getHubWidth();
+        float hubHeight = this.layout.getHubHeight();
+        float offset = this.layout.getSkewOffset();
+        float radius = PhiMetrics.CORNER_RADIUS * this.layout.getUiScale();
+        float bandWidth = this.layout.getBandWidth();
+
+        nvg.save();
+        nvg.translate(hubX + offset, hubY);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+
+        if (PhiTheme.isTransitioning()) {
+            drawWiped(nvg, 0.0F, 0.0F, hubWidth, hubHeight, radius,
+                    PhiTheme.previous().level1, PhiTheme.active().level1, false);
+            drawWiped(nvg, 0.0F, 0.0F, bandWidth, hubHeight, radius,
+                    PhiTheme.previous().level2, PhiTheme.active().level2, true);
+        } else {
+            // Window body (the global rounded parallelogram).
+            nvg.drawRoundedRect(0.0F, 0.0F, hubWidth, hubHeight, radius, PhiTheme.level1());
+
+            // Navigation band on the left side: it hugs the slanted left edge of the window, so its
+            // outer corners share the corner arcs of the window while its inner edge stays straight.
+            nvg.drawRoundedRectVarying(0.0F, 0.0F, bandWidth, hubHeight, radius, 0.0F, 0.0F, radius, PhiTheme.level2());
+        }
 
         nvg.restore();
     }
 
+    /**
+     * Draws a shape that is wiped diagonally: the lower left corner changes first, the upper right
+     * corner last.
+     *
+     * @param nvg      the NanoVG drawing context.
+     * @param x        the left x of the shape.
+     * @param y        the top y of the shape.
+     * @param width    the width of the shape.
+     * @param height   the height of the shape.
+     * @param radius   the corner radius of the shape.
+     * @param oldColor the color before the transition.
+     * @param newColor the color after the transition.
+     * @param varying  whether the shape uses different radii for its corners.
+     */
+    private void drawWiped(NanoVGManager nvg, float x, float y, float width, float height, float radius,
+                           int oldColor, int newColor, boolean varying) {
+        final int strips = 48;
+        float stripHeight = height / strips;
+        float progress = PhiTheme.transition();
+
+        for (int i = 0; i < strips; i++) {
+            float stripY = i * stripHeight;
+
+            // The axis of the wipe - the lower left corner comes first, the upper right one last.
+            float axis = (1.0F - (i + 0.5F) / strips) * 0.5F;
+            float local = (progress - axis * 0.55F) / 0.45F;
+            local = Math.max(0.0F, Math.min(1.0F, local));
+
+            int color = PhiTheme.mix(oldColor, newColor, local);
+
+            nvg.scissor(x, y + stripY, width, stripHeight + 1.0F);
+
+            if (varying) {
+                nvg.drawRoundedRectVarying(x, y, width, height, radius, 0.0F, 0.0F, radius, color);
+            } else {
+                nvg.drawRoundedRect(x, y, width, height, radius, color);
+            }
+        }
+
+        nvg.resetScissor();
+    }
+
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-        if (mouseButton == 0) {
-            for (int i = 0; i < this.categories.size(); i++) {
-                float itemX = this.panelX + 5.5F;
-                float itemY = this.panelY + ITEM_TOP + i * ITEM_SPACING;
-                if (MouseUtils.isInside(mouseX, mouseY, itemX, itemY, ITEM_SIZE, ITEM_SIZE)) {
-                    this.currentCategory = this.categories.get(i);
-                    return;
-                }
-            }
+        if (this.navBar.mouseClicked(mouseX, mouseY, mouseButton)) {
+            return;
         }
 
         this.currentCategory.mouseClicked(mouseX, mouseY, mouseButton);
@@ -204,6 +319,10 @@ public class GuiPhiHub extends GuiScreen {
 
     @Override
     public void mouseReleased(int mouseX, int mouseY, int mouseButton) {
+        if (this.navBar.mouseReleased(mouseX, mouseY, mouseButton)) {
+            return;
+        }
+
         this.currentCategory.mouseReleased(mouseX, mouseY, mouseButton);
     }
 
@@ -213,14 +332,34 @@ public class GuiPhiHub extends GuiScreen {
     }
 
     /**
-     * 吃掉全部鼠标 / 键盘事件：打开期间玩家不能对游戏本体做任何操作。
-     * 只识别 ESC 与右 Shift 作为「关闭」。
+     * Dispatches the mouse events to the interface and swallows every other input: while the hub is
+     * open the player cannot act on the game world. Only ESC and Right-Shift close the screen.
+     *
+     * @throws IOException never thrown, kept for the signature of the base class.
      */
     @Override
     public void handleInput() throws IOException {
         if (Mouse.isCreated()) {
             while (Mouse.next()) {
-                // 丢弃
+                int button = Mouse.getEventButton();
+                int x = Mouse.getEventX() * this.width / this.mc.displayWidth;
+                int y = this.height - Mouse.getEventY() * this.height / this.mc.displayHeight - 1;
+
+                if (button == -1) {
+                    // A wheel event (the button index is -1 for those). Only the content of the page
+                    // reacts to it - the navigation band does not scroll.
+                    int wheel = Mouse.getEventDWheel();
+                    if (wheel != 0) {
+                        this.currentCategory.onWheel(-wheel / WHEEL_DELTA_PER_NOTCH, x, y);
+                    }
+                    continue;
+                }
+
+                if (Mouse.getEventButtonState()) {
+                    this.mouseClicked(x, y, button);
+                } else {
+                    this.mouseReleased(x, y, button);
+                }
             }
         }
 
@@ -248,7 +387,7 @@ public class GuiPhiHub extends GuiScreen {
         }
     }
 
-    /** 界面打开时游戏照常运行（不暂停）。 */
+    /** The game keeps running normally (does not pause) while this screen is open. */
     @Override
     public boolean doesGuiPauseGame() {
         return false;
@@ -256,12 +395,48 @@ public class GuiPhiHub extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
-        // 打开界面时可能正按着 W / Shift 之类，清掉按键状态，避免关掉界面后角色自己动
+        // Keys like W / Shift may be held when the screen opened; clear them so the player does not
+        // drift after closing.
         KeyBinding.unPressAllKeys();
     }
 
     /**
-     * 关闭：播放退场动画，动画结束后由 drawScreen 真正切回游戏。
+     * Selects a page and shows it.
+     *
+     * @param category the page to show.
+     */
+    private void selectCategory(PhiCategory category) {
+        if (category == null || category == this.currentCategory) {
+            return;
+        }
+
+        this.currentCategory = category;
+        this.navBar.setSelected(category);
+
+        // Restart the slide-up entrance of the new page.
+        this.categoryTransition.reset();
+        this.categoryTransition.setDirection(Direction.FORWARDS);
+    }
+
+    /**
+     * Rebuilds the layout of the pages when the geometry of the hub changed.
+     */
+    private void updateLayout() {
+        if (Math.abs(this.laidOutWidth - this.layout.getHubWidth()) < 0.5F
+                && Math.abs(this.laidOutHeight - this.layout.getHubHeight()) < 0.5F) {
+            return;
+        }
+
+        this.laidOutWidth = this.layout.getHubWidth();
+        this.laidOutHeight = this.layout.getHubHeight();
+
+        for (PhiCategory category : this.categories) {
+            category.layout(this.layout);
+        }
+    }
+
+    /**
+     * Closes the screen: plays the exit animation, after which {@link #drawScreen} returns to the game.
      */
     private void close() {
         this.introAnimation.setDirection(Direction.BACKWARDS);

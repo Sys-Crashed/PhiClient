@@ -8,25 +8,32 @@ import java.io.OutputStream;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 /**
- * LWJGL 3 原生库安装器 —— 解决与 LWJGL 2 的「同名 lwjgl.dll」冲突。
+ * LWJGL 3 native library installer - resolves the "same-name lwjgl.dll" conflict with LWJGL 2
+ * (package {@code org.dpdns.syscrashed.phiclient.compat.lwjgl}).
  *
- * <p><b>问题</b>：LWJGL 3 的 {@code Library.loadSystem("lwjgl")} 会<b>优先</b>从
- * {@code java.library.path} 里找名为 {@code lwjgl.dll} 的文件；而 Minecraft 1.8.9 的 natives 目录里
- * 正好躺着 <b>LWJGL 2 的 32 位</b> {@code lwjgl.dll}（64 位 JVM 用的是 {@code lwjgl64.dll}，
- * 所以那个 32 位文件平时是死的）。于是 LWJGL 3 把 LWJGL 2 的 32 位 dll 加载进了 64 位 JVM，
- * 两个 native 库混用 → 堆损坏（Windows 上表现为退出码 {@code 0xC0000374 / STATUS_HEAP_CORRUPTION}）。
+ * <p><b>Problem</b>: LWJGL 3's {@code Library.loadSystem("lwjgl")} looks for a file named
+ * {@code lwjgl.dll} in {@code java.library.path} <b>first</b>; MC 1.8.9's natives directory happens to
+ * contain LWJGL 2's <b>32-bit</b> {@code lwjgl.dll} (the 64-bit JVM uses {@code lwjgl64.dll}, so that
+ * 32-bit file is normally dead). LWJGL 3 then loads LWJGL 2's 32-bit dll into the 64-bit JVM - two native
+ * libraries mixed -&gt; heap corruption (Windows exit code {@code 0xC0000374 / STATUS_HEAP_CORRUPTION}).</p>
  *
- * <p><b>解法</b>：把 LWJGL 3 自己的原生库（{@code lwjgl.dll} + {@code lwjgl_nanovg.dll}，
- * 来自 {@code libs/lwjgl-phi-natives.jar}）解到临时目录，再把这个目录<b>前置</b>到
- * {@code java.library.path}：
+ * <p><b>Fix</b>: extract LWJGL 3's own natives ({@code lwjgl.dll} + {@code lwjgl_nanovg.dll}, from
+ * {@code libs/lwjgl-phi-natives.jar}) into a temp directory, then <b>prepend</b> that directory to
+ * {@code java.library.path}:
  * <ul>
- *   <li>LWJGL 3 → 命中我们解出来的正确 dll ✓</li>
- *   <li>LWJGL 2 → 仍走 JVM 启动时固定的 native 搜索路径（它要的是 {@code lwjgl64.dll} / {@code OpenAL64.dll}），
- *       完全不受影响 ✓</li>
+ *   <li>LWJGL 3 -&gt; hits our correct dll ✓</li>
+ *   <li>LWJGL 2 -&gt; still walks the native search path fixed at JVM startup (it wants {@code lwjgl64.dll} /
+ *       {@code OpenAL64.dll}), completely unaffected ✓</li>
  * </ul>
  *
- * <p>之所以能在运行期改：LWJGL 3 的 {@code loadSystemFromLibraryPath} 是<b>调用时</b>才读
- * {@code java.library.path} 属性并自己遍历目录找文件，而不是用 JVM 启动时缓存的 native 搜索路径。
+ * <p>Why this can be changed at runtime: LWJGL 3's {@code loadSystemFromLibraryPath} reads the
+ * {@code java.library.path} property and walks the directories <em>when called</em>, not from a JVM-startup
+ * cached native search path.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #install()} - installs the LWJGL 3 natives; must be called before any LWJGL 3 class (NanoVG binding) is initialized.</li>
+ * </ul>
  */
 public final class Lwjgl3NativeInstaller {
 
@@ -36,7 +43,8 @@ public final class Lwjgl3NativeInstaller {
     }
 
     /**
-     * 安装 LWJGL 3 原生库。必须在任何 LWJGL 3 类（NanoVG 绑定）被初始化之前调用。
+     * Installs the LWJGL 3 native libraries. Must be called before any LWJGL 3 class (the NanoVG binding)
+     * is initialized.
      */
     public static synchronized void install() {
         if (installed) {
@@ -78,7 +86,9 @@ public final class Lwjgl3NativeInstaller {
     }
 
     /**
-     * 当前平台需要的原生库（在 natives jar 内的路径）。
+     * Returns the native resources needed for the current platform (paths inside the natives jar).
+     *
+     * @return the list of native resource paths, or {@code null} if the platform is unsupported (e.g. 32-bit).
      */
     private static String[] nativeResources() {
         String os = System.getProperty("os.name", "").toLowerCase();
@@ -107,7 +117,11 @@ public final class Lwjgl3NativeInstaller {
     }
 
     /**
-     * 从 classpath（natives jar）里取出原生库写到临时目录。
+     * Extracts a native library from the classpath (natives jar) into the temp directory.
+     *
+     * @param resource  the in-jar resource path of the native.
+     * @param directory the target directory.
+     * @return true if the native is present (extracted or already cached).
      */
     private static boolean extract(String resource, File directory) {
         String fileName = resource.substring(resource.lastIndexOf('/') + 1);

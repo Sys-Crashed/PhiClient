@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.render.BlurRenderer;
 import org.dpdns.syscrashed.phiclient.gui.screen.GuiPhiHub;
+import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.dpdns.syscrashed.phiclient.management.event.EventTarget;
 import org.dpdns.syscrashed.phiclient.management.event.impl.EventTick;
@@ -12,10 +13,21 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 
 /**
- * GUI 子系统的门面：持有 NanoVG 与虚化渲染器，并负责中心界面的开合。
+ * Facade for the GUI subsystem (package {@code org.dpdns.syscrashed.phiclient.gui}).
  *
- * <p>开启条件：必须「已经在游戏里」——有世界、有玩家、且当前没有任何 GuiScreen
- * （标题界面 / 背包 / 设置这些都不算游戏内）。
+ * <p>Holds the NanoVG manager and the blur renderer, and owns opening / closing the central hub
+ * screen. The hub can only be opened "in game" - there must be a world, a player, and no other
+ * {@code GuiScreen} active (title screen / inventory / settings do not count as in-game).</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #getNanoVGManager()} / {@link #getBlurRenderer()} - access the drawing subsystems.</li>
+ *   <li>{@link #init()} - registers the manager on the event bus (the NanoVG context stays lazily created).</li>
+ *   <li>{@link #shutdown()} - releases the blur and NanoVG resources.</li>
+ *   <li>{@link #onTick(EventTick)} - detects the rising edge of the Right-Shift key to open the hub.</li>
+ *   <li>{@link #isInGame()} - whether the game is currently in a playable state.</li>
+ *   <li>{@link #open()} / {@link #close()} - show / hide the hub screen.</li>
+ * </ul>
  */
 public final class PhiGuiManager {
 
@@ -24,35 +36,55 @@ public final class PhiGuiManager {
     private final NanoVGManager nanoVGManager = new NanoVGManager();
     private final BlurRenderer blurRenderer = new BlurRenderer();
 
+    private final PhiToast toast = new PhiToast();
+
     private boolean rightShiftDown;
 
+    /**
+     * @return the NanoVG drawing manager.
+     */
     public NanoVGManager getNanoVGManager() {
         return nanoVGManager;
     }
 
+    /**
+     * @return the toast that confirms actions at the top of the game window.
+     */
+    public PhiToast getToast() {
+        return toast;
+    }
+
+    /**
+     * @return the background blur renderer.
+     */
     public BlurRenderer getBlurRenderer() {
         return blurRenderer;
     }
 
     /**
-     * 注册进事件总线。
+     * Registers this manager on the event bus.
      *
-     * <p>注意：NanoVG 上下文是【懒创建】的 —— 真正要画第一帧的时候才建。
-     * 原因见 {@link NanoVGManager} 的注释：{@code nvgCreate} 会把自己的 shader program 绑上，
-     * 而 MC 启动阶段还要用固定管线生成字体图集，那时不能有 program 处于绑定状态。
+     * <p>Note: the NanoVG context is created <b>lazily</b> - on the first frame that actually draws.
+     * See {@link NanoVGManager} for the reason: {@code nvgCreate} binds its own shader program, while
+     * MC's startup still uses the fixed pipeline to build the font atlas, so no program may be bound then.</p>
      */
     public void init() {
         PhiLogger.info("GUI subsystem ready (NanoVG context is created lazily on first draw).");
     }
 
+    /**
+     * Releases the GUI resources (called on client shutdown).
+     */
     public void shutdown() {
         blurRenderer.delete();
         nanoVGManager.shutdown();
     }
 
     /**
-     * 右 Shift 的上升沿检测。用 {@link Keyboard#isKeyDown} 直接读按键状态，
-     * 不依赖事件队列（事件队列在界面打开后会被界面自己吃掉）。
+     * Detects the rising edge of the Right-Shift key. Reads the key state directly via
+     * {@link Keyboard#isKeyDown} rather than the event queue (which is consumed by the screen once open).
+     *
+     * @param event the per-frame tick event.
      */
     @EventTarget
     public void onTick(EventTick event) {
@@ -65,19 +97,29 @@ public final class PhiGuiManager {
         rightShiftDown = down;
     }
 
+    /**
+     * @return true if the game is currently in a playable state (world + player, no active screen).
+     */
     public boolean isInGame() {
         return mc.theWorld != null && mc.thePlayer != null && mc.currentScreen == null;
     }
 
+    /**
+     * Opens the hub screen. Does nothing unless {@link #isInGame()} is true. Clears all key states on
+     * open so a held movement key does not keep walking the player.
+     */
     public void open() {
         if (!isInGame()) {
             return;
         }
-        // 打开瞬间清掉按键状态，避免「按着 W 打开界面 → 角色一直往前走」
+        // Drop key state immediately, otherwise "hold W to open the GUI" would keep the player moving forward.
         KeyBinding.unPressAllKeys();
         mc.displayGuiScreen(new GuiPhiHub());
     }
 
+    /**
+     * Closes the hub screen if it is currently shown.
+     */
     public void close() {
         if (mc.currentScreen instanceof GuiPhiHub) {
             mc.displayGuiScreen(null);

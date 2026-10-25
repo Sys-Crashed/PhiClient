@@ -15,25 +15,32 @@ import net.minecraft.client.shader.ShaderUniform;
 import net.minecraft.util.ResourceLocation;
 
 /**
- * 背景虚化：用 Minecraft 自带的 shader 管线做一次「水平 + 垂直」两趟高斯模糊。
+ * Background blur: a two-pass (horizontal + vertical) Gaussian blur using Minecraft's own shader pipeline
+ * (package {@code org.dpdns.syscrashed.phiclient.gui.render}).
  *
- * <p>实现思路：
+ * <p>Approach:</p>
  * <ul>
- *   <li>shader 是 {@code assets/minecraft/shaders/post/blurArea.json}（仓库里随资源一起保留下来），
- *       内部两个 pass 分别做横向与纵向模糊；</li>
- *   <li>{@code BlurXY / BlurCoord} 决定模糊区域，{@code Radius} 决定强度；
- *       这几个 uniform 在 1.8.9 的 ShaderGroup 里没有公开 setter，所以通过
- *       {@link ShaderGroupAccess}（按类型反射拿到 shader 列表）逐个设置；</li>
- *   <li>模糊结果直接写回 MC 主帧缓冲，最后把主帧缓冲重新 bind 回去。</li>
+ *   <li>the shader is {@code assets/minecraft/shaders/post/blurArea.json} (kept in the repo resources);
+ *       its two internal passes do horizontal and vertical blur;</li>
+ *   <li>{@code BlurXY / BlurCoord} define the blurred region and {@code Radius} defines the strength;
+ *       these uniforms have no public setter in 1.8.9, so they are set per-shader via
+ *       {@link ShaderGroupAccess} (which finds the shader list by type reflection);</li>
+ *   <li>the blurred result is written back to MC's main framebuffer, which is then re-bound.</li>
  * </ul>
  *
- * <p>相比自己写 FBO + 高斯 pass 的方案，走 MC 的 ShaderGroup 有两个好处：
- * 帧缓冲链由 MC 自己管理（不会漏掉 viewport / 纹理过滤的还原），
- * 并且不会去动 MC 的 {@code GlStateManager} 缓存。
+ * <p>Compared to hand-rolling an FBO + Gaussian pass, going through MC's {@link ShaderGroup} has two
+ * advantages: the framebuffer chain is managed by MC (no missed viewport / texture-filter restores) and
+ * it does not touch MC's {@code GlStateManager} cache.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #render(float, float)} - blurs the current main framebuffer (writes the result back).</li>
+ *   <li>{@link #delete()} - releases the self-managed resources (called on game exit).</li>
+ * </ul>
  */
 public final class BlurRenderer {
 
-    /** 模糊后处理脚本。 */
+    /** The blur post-processing script. */
     private static final ResourceLocation BLUR_SHADER = new ResourceLocation("shaders/post/blurArea.json");
 
     private final Minecraft mc = Minecraft.getMinecraft();
@@ -44,11 +51,12 @@ public final class BlurRenderer {
     private boolean disabled;
 
     /**
-     * 对当前主帧缓冲做一次虚化（结果直接写回主帧缓冲）。
-     * 任何一步失败都会把自己永久关掉并只报一次错，避免每帧刷屏 / 连带把游戏搞崩。
+     * Blurs the current main framebuffer once (result is written back to the main framebuffer). If any
+     * step fails, the renderer permanently disables itself and logs only once, to avoid spamming every
+     * frame / crashing the game.
      *
-     * @param partialTicks 渲染插值系数
-     * @param radius       模糊半径
+     * @param partialTicks the render interpolation factor.
+     * @param radius       the blur radius.
      */
     public void render(float partialTicks, float radius) {
         if (this.disabled) {
@@ -71,11 +79,11 @@ public final class BlurRenderer {
                 Framebuffer main = this.mc.getFramebuffer();
                 this.shaderGroup = new ShaderGroup(this.mc.getTextureManager(), this.mc.getResourceManager(), main, BLUR_SHADER);
 
-                // 必须调用：1.8.9 里只有 createBindFramebuffers 才会
-                //   1) resetProjectionMatrix() 建出投影矩阵；
-                //   2) 把投影矩阵分发给每一个 shader。
-                // 少了这一步，shader 里的 ProjMat uniform 会拿到 null 的 Matrix4f，
-                // Shader.loadShader 里直接抛 NullPointerException（这里同样必须走这步）。
+                // Must call this: in 1.8.9 only createBindFramebuffers will
+                //   1) resetProjectionMatrix() build the projection matrix;
+                //   2) distribute the projection matrix to every shader.
+                // Without it, the ProjMat uniform receives a null Matrix4f and
+                // Shader.loadShader throws NullPointerException (this step is required here too).
                 this.shaderGroup.createBindFramebuffers(this.mc.displayWidth, this.mc.displayHeight);
 
                 this.lastWidth = this.mc.displayWidth;
@@ -94,9 +102,8 @@ public final class BlurRenderer {
     }
 
     /**
-     * 设置两个 pass 的 uniform：
-     * BlurXY 是模糊区域的起点，BlurCoord 是区域大小（都按「半分辨率」折算过），
-     * 最终效果是整屏模糊。
+     * Sets the uniforms for both passes: {@code BlurXY} is the region origin, {@code BlurCoord} is the
+     * region size (both halved to match the half-resolution blur), giving a full-screen blur.
      */
     private void applyUniforms(float radius) {
         ScaledResolution sr = new ScaledResolution(this.mc);
@@ -108,8 +115,9 @@ public final class BlurRenderer {
         int y = 0;
         int width = scaledWidth;
         int height = scaledHeight;
-        // 下面的算式刻意与最初的模糊实现逐项一致（即使 height 目前恒等于 scaledHeight），
-        // 这样模糊区域表现稳定，将来改成局部模糊时也不用重算。
+        // The formula below is intentionally identical item-by-item to the original blur implementation
+        // (even though height currently always equals scaledHeight), so the blurred region behaves
+        // stably and need not be recomputed when switching to a local blur later.
 
         List<Shader> shaders = ShaderGroupAccess.getShaders(this.shaderGroup);
         if (shaders == null) {
@@ -143,7 +151,7 @@ public final class BlurRenderer {
     }
 
     /**
-     * 释放自建资源（游戏退出时调用）。
+     * Releases the self-managed resources (called when the game exits).
      */
     public void delete() {
         if (this.shaderGroup != null) {

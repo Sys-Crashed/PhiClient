@@ -14,21 +14,29 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /**
- * 把 NanoVG（LWJGL 3 绑定）原本依赖 LWJGL 3 OpenGL 模块的逻辑，重定向到我们的 LWJGL 2 函数提供者。
+ * Redirects NanoVG's (LWJGL 3 binding) GL dependency to our LWJGL 2 function provider
+ * (package {@code org.dpdns.syscrashed.phiclient.injection.transformer}).
  *
- * <p>具体做法：在 {@code org.lwjgl.nanovg.NanoVGGLConfig#configGL(long)} 加载时，把它整个方法体替换成
+ * <p>Concretely, when {@code org.lwjgl.nanovg.NanoVGGLConfig#configGL(long)} is loaded, its whole
+ * body is replaced with:</p>
  * <pre>
  *     static void configGL(long addr) {
  *         config(addr, new Lwjgl2FunctionProvider());
  *     }
  * </pre>
- * 这样 NanoVG 在创建上下文时不会再尝试 {@code Class.forName("org.lwjgl.opengl.GL")}（那会去加载
- * LWJGL 3 的 GL 模块、与 MC 1.8.9 的 LWJGL 2 冲突，且其所在的 {@code org.lwjgl.opengl} 路径还被
- * LWJGL 2 的 jar 做了 security seal，会直接破坏 GL 状态导致矩阵栈下溢）。
+ * <p>so NanoVG no longer tries {@code Class.forName("org.lwjgl.opengl.GL")} when creating a context
+ * (that would pull in LWJGL 3's GL module, conflicting with MC 1.8.9's LWJGL 2; and the
+ * {@code org.lwjgl.opengl} path is security-sealed by LWJGL 2's jar, which would corrupt GL state
+ * and underflow the matrix stack).</p>
  *
- * <p>本类在 {@code PhiTweaker#injectIntoClassLoader} 里通过
- * {@code classLoader.registerTransformer(...)} 注册，必须在 {@code NanoVGGLConfig} 被加载之前生效
- * （tweaker 初始化阶段注册即可，远早于游戏运行）。
+ * <p>This transformer is registered via {@code classLoader.registerTransformer(...)} inside
+ * {@code PhiTweaker#injectIntoClassLoader} and must take effect before {@code NanoVGGLConfig} is
+ * loaded (registering during tweaker init satisfies that, long before the game runs).</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #transform(String, String, byte[])} - the IClassTransformer entry point; rewrites {@code configGL} for the NanoVG config class.</li>
+ * </ul>
  */
 public final class LwjglTransformer implements IClassTransformer {
 
@@ -51,7 +59,7 @@ public final class LwjglTransformer implements IClassTransformer {
             }
 
             InsnList list = new InsnList();
-            // long addr 作为第 0 个 slot（long 占两个 slot，0 和 1）
+            // long addr occupies slots 0 and 1 (a long takes two slots).
             list.add(new VarInsnNode(Opcodes.LLOAD, 0));
             list.add(new TypeInsnNode(Opcodes.NEW, FUNCTION_PROVIDER));
             list.add(new InsnNode(Opcodes.DUP));

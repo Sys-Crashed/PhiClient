@@ -12,30 +12,38 @@ import net.minecraft.launchwrapper.LaunchClassLoader;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 /**
- * 把 PhiClient jar 里内置的 OptiFine 取出来，并以<strong>jar 文件</strong>形式挂到类加载器上，
- * 让用户无需自己安装 OptiFine。
+ * Extracts the OptiFine jar bundled inside the PhiClient jar and mounts it as a <strong>jar file</strong>
+ * onto the class loaders, so the user does not have to install OptiFine manually
+ * (package {@code org.dpdns.syscrashed.phiclient.compat.optifine}).
  *
- * <p>为什么必须是"jar 文件 + 父加载器可见"，而不是"解压成目录"或"只挂给 LaunchClassLoader"：
+ * <p>Why it must be "a jar file visible to the parent loader" rather than "extracted to a directory" or
+ * "only mounted on LaunchClassLoader":</p>
  *
- * <p>OptiFine 用 {@code getProtectionDomain().getCodeSource().getLocation().toURI()} 定位自己的 jar。
- * 而 {@code LaunchClassLoader#findClass} 是用
- * {@code new CodeSource(findResource(name).getURL(), ...)} 造 CodeSource 的 —— 也就是
- * <strong>jar 条目 URL</strong>（{@code jar:file:/.../OptiFine.jar!/optifine/X.class}）。
- * 于是 {@code new File(uri)} 必然抛 {@code IllegalArgumentException: URI is not hierarchical}，
- * OptiFine 随后打印 "*** Can not find the OptiFine JAR in the classpath ***" 并彻底失效。
- * 这点已实测：标准 launchwrapper-1.11 与 OptiFine 自带的 launchwrapper-of-2.2 行为完全一致。
+ * <p>OptiFine locates its own jar via {@code getProtectionDomain().getCodeSource().getLocation().toURI()}.
+ * But {@code LaunchClassLoader#findClass} builds its CodeSource with
+ * {@code new CodeSource(findResource(name).getURL(), ...)} - i.e. a <strong>jar-entry URL</strong>
+ * ({@code jar:file:/.../OptiFine.jar!/optifine/X.class}). Then {@code new File(uri)} throws
+ * {@code IllegalArgumentException: URI is not hierarchical}, after which OptiFine prints
+ * "*** Can not find the OptiFine JAR in the classpath ***" and dies. This was verified: standard
+ * launchwrapper-1.11 and OptiFine's own launchwrapper-of-2.2 behave identically.</p>
  *
- * <p>官方之所以能用，是因为 {@code Launch} 在加载 tweaker 时做了这件事
- * （launchwrapper 1.11 {@code Launch.java:97}）：
+ * <p>The official build works because {@code Launch} excludes the tweak's package from LaunchClassLoader
+ * (launchwrapper 1.11 {@code Launch.java:97}):
  * <pre>
  * // Ensure we allow the tweak class to load with the parent classloader
  * classLoader.addClassLoaderExclusion(tweakName.substring(0, tweakName.lastIndexOf('.')));
  * </pre>
- * 传 {@code --tweakClass optifine.OptiFineTweaker} 时，被排除的前缀正是 {@code optifine}，
- * 于是所有 {@code optifine.*} 改由<strong>父加载器（系统 classpath）</strong>加载 ——
- * 而普通 {@code URLClassLoader} 造的 CodeSource 是 {@code file:/.../OptiFine.jar}，定位成立。
- * 本类负责"让 OptiFine 的 jar 出现在父加载器能看到的地方"，
- * {@link OptiFineCompat#hook} 负责补上那条 {@code addClassLoaderExclusion}。
+ * With {@code --tweakClass optifine.OptiFineTweaker} the excluded prefix is {@code optifine}, so all
+ * {@code optifine.*} load from the <strong>parent (system classpath)</strong> loader - and a normal
+ * {@code URLClassLoader} yields a {@code file:/.../OptiFine.jar} CodeSource, which resolves correctly.
+ * This class makes OptiFine's jar appear where the parent loader can see it; {@link OptiFineCompat#hook}
+ * adds the {@code addClassLoaderExclusion} part.</p>
+ *
+ * <p>Provided methods:</p>
+ * <ul>
+ *   <li>{@link #provision(LaunchClassLoader)} - extracts the bundled OptiFine jar and mounts it; returns the jar (or null).</li>
+ *   <li>{@link #isVisibleToSystemClassLoader()} - whether OptiFine is already on the system classpath.</li>
+ * </ul>
  */
 public final class OptiFineProvisioner {
 
@@ -47,25 +55,26 @@ public final class OptiFineProvisioner {
     }
 
     /**
-     * 供给 OptiFine：把内置的 OptiFine jar 落到用户目录缓存，并挂到类加载器上。
+     * Provisions OptiFine: extracts the bundled OptiFine jar into the user's cache directory and mounts it.
      *
-     * @return 可用的 OptiFine jar 文件；无需/无法供给时返回 null
+     * @param classLoader the LaunchClassLoader to also receive the jar (for {@code net.optifine.*}).
+     * @return a usable OptiFine jar file, or {@code null} when no provisioning is needed / possible.
      */
     public static File provision(LaunchClassLoader classLoader) {
         if (isDeobfuscatedEnvironment()) {
-            // 开发工作区跑的是 SRG 命名的 MC，OptiFine 的补丁按混淆类名匹配，压根不会生效，直接跳过。
+            // The dev workspace runs SRG-named MC; OptiFine's patches match obfuscated names and never apply, so skip.
             return null;
         }
 
         if (isVisibleToSystemClassLoader()) {
-            // 系统 classpath 上已经有了（我们自己的启动脚本把 OptiFine 放进 libraries/ 就是这个情况），
-            // 父加载器能直接看到，无需再解内置的那份。
+            // Already on the system classpath (our launcher puts OptiFine into libraries/), so the parent
+            // loader can see it directly - no need to extract our bundled copy.
             return null;
         }
 
         InputStream stream = OptiFineProvisioner.class.getResourceAsStream(RESOURCE_DIR + RESOURCE_NAME);
         if (stream == null) {
-            // 没有内置 OptiFine：交给外置 classpath 或用户环境处理，保持向后兼容。
+            // No bundled OptiFine: leave it to an external classpath or the user's environment (backward compatible).
             return null;
         }
 
@@ -80,9 +89,9 @@ public final class OptiFineProvisioner {
                 PhiLogger.info("Extracted embedded OptiFine to " + target.getAbsolutePath());
             }
 
-            // 父加载器可见 → optifine.* 由它加载 → CodeSource 是 file: 形式的 jar 路径
+            // Parent loader visible -> optifine.* loads from it -> CodeSource is a file: jar path.
             addToSystemClassPath(target);
-            // LaunchClassLoader 也要有 → 否则 net.optifine.*（408 个类）找不到
+            // LaunchClassLoader also needs it, otherwise net.optifine.* (408 classes) cannot be found.
             addToClassLoader(classLoader, target);
             return target;
         } catch (Throwable throwable) {
@@ -95,10 +104,13 @@ public final class OptiFineProvisioner {
     }
 
     /**
-     * 判断是否跑在反混淆（SRG）环境里，例如 ForgeGradle 的 {@code runClient}。
+     * Detects whether we are running in a deobfuscated (SRG) environment, e.g. ForgeGradle's
+     * {@code runClient}.
      *
-     * 依据：混淆环境下 Minecraft 类的资源路径是 {@code /ave.class}，
-     * 而 SRG 环境下是 {@code /net/minecraft/client/Minecraft.class}。
+     * <p>Basis: in an obfuscated environment the Minecraft class resource path is {@code /ave.class},
+     * while in SRG it is {@code /net/minecraft/client/Minecraft.class}.</p>
+     *
+     * @return true if the environment is deobfuscated.
      */
     private static boolean isDeobfuscatedEnvironment() {
         try {
@@ -109,7 +121,9 @@ public final class OptiFineProvisioner {
         }
     }
 
-    /** OptiFine 是否已经能被父加载器（系统 classpath）看到。 */
+    /**
+     * @return whether OptiFine is already visible to the parent (system classpath) loader.
+     */
     static boolean isVisibleToSystemClassLoader() {
         try {
             return ClassLoader.getSystemClassLoader().getResource(OptiFineCompat.RESOURCE_TRANSFORMER) != null;
@@ -118,7 +132,7 @@ public final class OptiFineProvisioner {
         }
     }
 
-    /** Java 8 下系统类加载器是 {@code URLClassLoader}，可以反射追加 URL。 */
+    /** On Java 8 the system class loader is a {@code URLClassLoader}, so we can reflectively append a URL. */
     private static void addToSystemClassPath(File jar) throws Exception {
         ClassLoader system = ClassLoader.getSystemClassLoader();
         if (!(system instanceof URLClassLoader)) {
