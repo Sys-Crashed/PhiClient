@@ -105,6 +105,61 @@ public enum PhiIcons implements PhiIcon {
         }
     },
 
+    /**
+     * More settings - a gear wheel. It marks the modules whose parameters can be adjusted: the wheel
+     * is drawn as eight teeth around a ring with a hole in the middle.
+     */
+    MORE_SETTINGS {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.075F;
+            float outer = size * 0.34F;
+            float toothLength = size * 0.10F;
+
+            // Teeth: short spokes that stick out of the ring.
+            for (int i = 0; i < 8; i++) {
+                float angle = (float) (i * Math.PI / 4.0D);
+                float cos = (float) Math.cos(angle);
+                float sin = (float) Math.sin(angle);
+
+                nvg.drawLine(centerX + cos * outer, centerY + sin * outer,
+                        centerX + cos * (outer + toothLength), centerY + sin * (outer + toothLength), color, w);
+            }
+
+            // Ring.
+            nvg.beginPath();
+            nvg.arc(centerX, centerY, outer, 0.0F, (float) (Math.PI * 2.0D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+
+            // Hole in the middle.
+            nvg.beginPath();
+            nvg.arc(centerX, centerY, size * 0.13F, 0.0F, (float) (Math.PI * 2.0D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Reset - a circular arrow that restores the default values of a module. */
+    RESET {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+            float radius = size * 0.30F;
+
+            // The open ring (most of a circle).
+            nvg.beginPath();
+            nvg.arc(centerX, centerY, radius, (float) (Math.PI * 0.2D), (float) (Math.PI * 1.7D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+
+            // The arrow head at the end of the ring.
+            nvg.beginPath();
+            nvg.moveTo(centerX + radius * 0.98F, centerY - radius * 0.20F);
+            nvg.lineTo(centerX + radius * 0.62F, centerY - radius * 0.40F);
+            nvg.lineTo(centerX + radius * 0.84F, centerY + radius * 0.14F);
+            nvg.closePath();
+            nvg.fillPath(color);
+        }
+    },
+
     /** HUD - a layout box with a widget inside. */
     HUD {
         @Override
