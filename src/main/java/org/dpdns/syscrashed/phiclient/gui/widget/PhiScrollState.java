@@ -10,9 +10,11 @@ package org.dpdns.syscrashed.phiclient.gui.widget;
  * <p>Provided methods:</p>
  * <ul>
  *   <li>{@link #setContentSize(float, float)} - updates the content and viewport height.</li>
+ *   <li>{@link #setOffsetRange(float, float)} - sets explicit scroll bounds (dial style lists).</li>
  *   <li>{@link #scrollBy(float)} - applies a wheel delta.</li>
+ *   <li>{@link #setOffset(float)} - moves the scroll position directly (snap animations).</li>
  *   <li>{@link #update(float)} - advances the inertia and the rubber band.</li>
- *   <li>{@link #getOffset()} / {@link #getMaxOffset()} - the current scroll position.</li>
+ *   <li>{@link #getOffset()} / {@link #getMaxOffset()} / {@link #getVelocity()} - the current state.</li>
  * </ul>
  */
 public class PhiScrollState {
@@ -32,8 +34,15 @@ public class PhiScrollState {
     private float contentHeight;
     private float viewportHeight;
 
+    /** The lower bound of the scroll range (usually 0, negative for dial style lists). */
+    private float minOffset;
+
+    /** An explicit upper bound of the scroll range (-1 = derive it from the content sizes). */
+    private float explicitMax = -1.0F;
+
     /**
-     * Updates the sizes of the scrollable content.
+     * Updates the sizes of the scrollable content. The valid range of the scroll offset is reset to
+     * {@code [0, contentHeight - viewportHeight]}.
      *
      * @param contentHeight  the total height of the content.
      * @param viewportHeight the visible height of the list.
@@ -41,6 +50,20 @@ public class PhiScrollState {
     public void setContentSize(float contentHeight, float viewportHeight) {
         this.contentHeight = contentHeight;
         this.viewportHeight = viewportHeight;
+        this.minOffset = 0.0F;
+        this.explicitMax = -1.0F;
+    }
+
+    /**
+     * Sets the valid range of the scroll offset explicitly. It is used by dial style lists, whose
+     * offset may start below zero so that the first entry can be centered.
+     *
+     * @param min the lowest valid offset.
+     * @param max the highest valid offset.
+     */
+    public void setOffsetRange(float min, float max) {
+        this.minOffset = Math.min(min, max);
+        this.explicitMax = Math.max(min, max);
     }
 
     /**
@@ -51,13 +74,24 @@ public class PhiScrollState {
     public void scrollBy(float delta) {
         float target = this.offset + delta;
 
-        if (target < 0.0F || target > getMaxOffset()) {
+        if (target < this.minOffset || target > getMaxOffset()) {
             // Rubber band: only a part of the delta is applied outside of the valid range.
             target = this.offset + delta * OVERSCROLL_RESISTANCE;
         }
 
         this.offset = target;
         this.velocity = delta;
+    }
+
+    /**
+     * Moves the scroll position directly to the given offset and stops the inertia. It is used by
+     * snap animations, which control the offset of a dial style list frame by frame.
+     *
+     * @param offset the new scroll offset, clamped to the valid range.
+     */
+    public void setOffset(float offset) {
+        this.offset = clamp(offset, this.minOffset, getMaxOffset());
+        this.velocity = 0.0F;
     }
 
     /**
@@ -68,9 +102,9 @@ public class PhiScrollState {
     public void update(float deltaMs) {
         float frames = Math.max(0.0F, deltaMs) / 16.6667F;
 
-        if (this.offset < 0.0F || this.offset > getMaxOffset()) {
+        if (this.offset < this.minOffset || this.offset > getMaxOffset()) {
             // Rubber band: spring back towards the valid range.
-            float clamped = clamp(this.offset, 0.0F, getMaxOffset());
+            float clamped = clamp(this.offset, this.minOffset, getMaxOffset());
             float factor = Math.min(1.0F, Math.max(0.0F, deltaMs) / 80.0F);
             this.offset += (clamped - this.offset) * factor;
             this.velocity = 0.0F;
@@ -96,7 +130,18 @@ public class PhiScrollState {
      * @return the maximum scroll offset of the list.
      */
     public float getMaxOffset() {
+        if (this.explicitMax >= 0.0F) {
+            return this.explicitMax;
+        }
+
         return Math.max(0.0F, this.contentHeight - this.viewportHeight);
+    }
+
+    /**
+     * @return the current scroll velocity (0 = the list is stopped).
+     */
+    public float getVelocity() {
+        return this.velocity;
     }
 
     /**

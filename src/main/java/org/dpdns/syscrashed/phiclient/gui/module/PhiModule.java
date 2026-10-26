@@ -4,16 +4,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
+
 /**
  * A module shown on the modules page of the PhiHub
  * (package {@code org.dpdns.syscrashed.phiclient.gui.module}).
  *
- * <p>A module has a name, a short description and a toggle state. There are two kinds of modules:</p>
+ * <p>A module has a name, a short description, an icon and a toggle state. There are two kinds of
+ * modules:</p>
  * <ul>
  *   <li>a module <b>without</b> settings is only a switch - it shows no "more settings" entry;</li>
  *   <li>a module <b>with</b> settings can additionally adjust its parameters in the "more settings"
- *       panel, which is opened by the gear icon on the right side of the module row (the same way the
- *       Soar client does it).</li>
+ *       panel, which is opened by the square button on the right side of the selected row (the same
+ *       way the Soar client does it).</li>
  * </ul>
  *
  * <p>This is the placeholder data model that tests the GUI; the real module system replaces it later.</p>
@@ -26,6 +29,9 @@ public class PhiModule {
     /** The short description below the name. */
     private final String description;
 
+    /** The icon of the module, shown in the detail panel. */
+    private final PhiIcon icon;
+
     /** Whether the module is enabled. */
     private boolean toggled;
 
@@ -37,11 +43,13 @@ public class PhiModule {
      *
      * @param name        the name of the module.
      * @param description the short description below the name.
+     * @param icon        the icon of the module.
      * @param toggled     whether the module starts enabled.
      */
-    public PhiModule(String name, String description, boolean toggled) {
+    public PhiModule(String name, String description, PhiIcon icon, boolean toggled) {
         this.name = name;
         this.description = description;
+        this.icon = icon;
         this.toggled = toggled;
         this.settings = new ArrayList<PhiModuleSetting>();
     }
@@ -84,6 +92,13 @@ public class PhiModule {
      */
     public String getDescription() {
         return this.description;
+    }
+
+    /**
+     * @return the icon of the module.
+     */
+    public PhiIcon getIcon() {
+        return this.icon;
     }
 
     /**

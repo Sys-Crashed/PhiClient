@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
@@ -17,63 +18,92 @@ import org.dpdns.syscrashed.phiclient.utils.animation.Direction;
 import org.dpdns.syscrashed.phiclient.utils.animation.EaseOutCubic;
 
 /**
- * The modules page of the PhiHub: a full-width panel whose list holds one row per module (name,
- * description, toggle switch and - for modules with parameters - a gear icon). The gear opens the
- * "more settings" panel, which slides in from the right and holds the parameters of the module in a
- * two-column grid (toggle / slider / combo box, like the Soar client). The panel is left with the
- * back icon or a right click. The rows follow the slanted left edge of the panel and scroll along
- * the same diagonal.
+ * The modules page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
+ *
+ * <p>The page is split into two areas that share one content rectangle:</p>
+ * <ul>
+ *   <li><b>the dial list</b> on the left: a center-focused list of the modules. The selected entry
+ *       sits in the vertical center on a {@code L0} background and shows the name, the description
+ *       and - for modules with parameters - a square {@code L5} "more settings" button on its right
+ *       edge. A click on an entry slides it to the center (0.2 s ease-out), a stopped wheel snaps the
+ *       nearest entry to the center, and the upper / lower edges fade the entries out with a gradient
+ *       mask;</li>
+ *   <li><b>the detail panel</b> on the right: a large card with the icon of the selected module, a
+ *       plain decorative strip and a toggle switch that enables / disables the module.</li>
+ * </ul>
+ *
+ * <p>The "more settings" button slides the Soar-style settings panel over the page: the list and the
+ * detail panel move out to the left while the panel - the name of the module, a reset and a back
+ * button and a two-column grid of the parameters (toggle / slider / combo box) - moves in from the
+ * right. The panel is left with the back button or with a right click.</p>
  */
 public class PhiModulePanel extends PhiComponent implements PhiScrollable {
 
     // ------------------------------------------------------------------ metrics (design pixels)
 
-    /** Height of a module row. */
-    private static final float ROW_HEIGHT = 56.0F;
+    /** Height of the header line. */
+    private static final float HEADER_HEIGHT = 48.0F;
 
-    /** Vertical gap between two module rows. */
-    private static final float ROW_GAP = 10.0F;
-
-    /** Inset between the panel and its rows. */
+    /** Inset between the panel and its content. */
     private static final float PANEL_PADDING = 18.0F;
 
-    /** Inset between a row and its content. */
+    /** Share of the content width the dial list takes. */
+    private static final float LIST_RATIO = 0.44F;
+
+    /** Horizontal distance between the dial list and the detail panel. */
+    private static final float DETAIL_GAP = 20.0F;
+
+    /** Height of a row of the dial list. */
+    private static final float ROW_HEIGHT = 46.0F;
+
+    /** Vertical gap between two rows of the dial list. */
+    private static final float ROW_GAP = 6.0F;
+
+    /** Inset between a row and its text. */
     private static final float ROW_PADDING = 12.0F;
 
-    /** Edge length of the gear button. */
-    private static final float GEAR_SIZE = 22.0F;
+    /** Edge length of the square "more settings" button. */
+    private static final float GEAR_SIZE = 28.0F;
+
+    /** Edge length of the square reset / back buttons of the settings panel. */
+    private static final float ICON_BUTTON = 24.0F;
 
     /** Width / height of a toggle switch. */
     private static final float TOGGLE_WIDTH = 34.0F;
     private static final float TOGGLE_HEIGHT = 18.0F;
 
-    /** Horizontal distance between the controls of a row. */
-    private static final float CONTROL_GAP = 8.0F;
-
     /** Height of a row of the settings grid. */
-    private static final float SETTING_ROW_HEIGHT = 42.0F;
+    private static final float SETTING_ROW_HEIGHT = 46.0F;
 
     /** Horizontal gap between the two columns of the settings grid. */
     private static final float SETTING_COL_GAP = 28.0F;
-
-    /** Edge length of the back / reset buttons of the settings panel. */
-    private static final float ICON_BUTTON = 26.0F;
 
     /** Height of a combo box and of one of its options. */
     private static final float COMBO_HEIGHT = 22.0F;
     private static final float COMBO_OPTION_HEIGHT = 24.0F;
 
-    /** Height of a slider track. */
+    /** Height of a slider track and edge length of its handle. */
     private static final float SLIDER_HEIGHT = 6.0F;
-
-    /** Edge length of the handle of a slider. */
     private static final float HANDLE_SIZE = 14.0F;
+
+    /** Height of the gradient fades on the upper / lower edge of the dial list. */
+    private static final float FADE_HEIGHT = 40.0F;
+
+    /** Height of the decorative strip and edge length of the icon of the detail panel. */
+    private static final float DETAIL_STRIP_HEIGHT = 14.0F;
+    private static final float DETAIL_ICON_SIZE = 48.0F;
 
     /** Scroll distance of a single wheel notch. */
     private static final float SCROLL_PER_NOTCH = 30.0F;
 
-    /** Duration of the slide between the list and the settings panel. */
+    /** Duration of the snap-to-center animation in milliseconds. */
+    private static final int SNAP_MS = 200;
+
+    /** Duration of the slide between the page and the settings panel. */
     private static final int TRANSITION_MS = 320;
+
+    /** How long after the last wheel input the list snaps to the nearest entry. */
+    private static final long SNAP_IDLE_MS = 120L;
 
     // ------------------------------------------------------------------ state
 
@@ -81,27 +111,49 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
 
     private final float uiScale;
 
-    /** The toggle switch of every module row (one per module). */
-    private final List<PhiToggle> rowToggles = new ArrayList<PhiToggle>();
-
     /** The toggle switches of the settings panel (rebuilt when a module is opened). */
     private final List<PhiToggle> settingToggles = new ArrayList<PhiToggle>();
 
+    /** The scroll state of the dial list. */
     private final PhiScrollState listScroll = new PhiScrollState();
 
-    private final PhiScrollState settingsScroll = new PhiScrollState();
-
-    /** The slide between the list and the settings panel (0 = list, 1 = settings). */
+    /** The slide between the page and the settings panel (0 = page, 1 = settings). */
     private final EaseOutCubic transition = new EaseOutCubic(TRANSITION_MS, 1.0D);
 
-    /** The index of the module whose settings are open (-1 = list view). */
+    /** The toggle switch of the detail panel. */
+    private final PhiToggle detailToggle;
+
+    /** The snap-to-center animation of the dial list (null = none). */
+    private EaseOutCubic snapAnim;
+
+    /** The offsets the running snap animation moves between. */
+    private float snapFrom;
+    private float snapTo;
+
+    /** The index of the module whose settings are open (-1 = page view). */
     private int openModule = -1;
+
+    /**
+     * Whether the transition plays the closing direction. The underlying animation only runs forwards
+     * (reversing a finished animation makes its value jump to the start instantly), so the closing
+     * slide maps the progress to {@code 1 - value} instead.
+     */
+    private boolean closing;
 
     /** The index of the combo box that shows its options (-1 = none). */
     private int comboOpenIndex = -1;
 
     /** The index of the setting whose slider is being dragged (-1 = none). */
     private int draggingSlider = -1;
+
+    /** The index of the selected (centered) module of the dial list. */
+    private int focus;
+
+    /** Whether the initial scroll position was set. */
+    private boolean scrollInitialized;
+
+    /** The moment of the last wheel input. */
+    private long lastWheelTime;
 
     /** The hover trackers of the interactive elements. */
     private final HoverTracker rowHover = new HoverTracker();
@@ -127,18 +179,15 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
         this.modules = modules;
         this.lastFrame = System.currentTimeMillis();
 
-        for (final PhiModule module : modules) {
-            PhiToggle toggle = new PhiToggle(0.0F, 0.0F, TOGGLE_WIDTH * uiScale, TOGGLE_HEIGHT * uiScale,
-                    module.isToggled());
-            toggle.setOnToggled(new PhiToggle.Listener() {
-                @Override
-                public void onToggled(boolean value) {
-                    module.setToggled(value);
+        this.detailToggle = new PhiToggle(0.0F, 0.0F, TOGGLE_WIDTH * uiScale, TOGGLE_HEIGHT * uiScale, false);
+        this.detailToggle.setOnToggled(new PhiToggle.Listener() {
+            @Override
+            public void onToggled(boolean value) {
+                if (PhiModulePanel.this.focus >= 0 && PhiModulePanel.this.focus < PhiModulePanel.this.modules.size()) {
+                    PhiModulePanel.this.modules.get(PhiModulePanel.this.focus).setToggled(value);
                 }
-            });
-
-            this.rowToggles.add(toggle);
-        }
+            }
+        });
     }
 
     // ------------------------------------------------------------------ interaction
@@ -146,11 +195,11 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (this.openModule < 0) {
-            clickedList(mouseX, mouseY, mouseButton);
+            clickedPage(mouseX, mouseY, mouseButton);
             return;
         }
 
-        if (this.transition.getValueFloat() < 1.0F) {
+        if (transitionValue() < 1.0F) {
             return;
         }
 
@@ -168,46 +217,56 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
             return false;
         }
 
-        float delta = notches * SCROLL_PER_NOTCH * this.uiScale;
-
-        if (this.openModule >= 0) {
-            this.settingsScroll.scrollBy(delta);
-        } else {
-            this.listScroll.scrollBy(delta);
+        if (this.openModule < 0) {
+            this.snapAnim = null;
+            this.lastWheelTime = System.currentTimeMillis();
+            this.listScroll.scrollBy(notches * SCROLL_PER_NOTCH * this.uiScale);
         }
 
         return true;
     }
 
     /**
-     * Handles a click while the list view is shown.
+     * Handles a click while the page view is shown.
      */
-    private void clickedList(int mouseX, int mouseY, int mouseButton) {
+    private void clickedPage(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton != 0) {
             return;
         }
 
-        float cursor = listTop() - this.listScroll.getOffset();
+        float t = this.openModule >= 0 ? transitionValue() : 0.0F;
+        int mx = mouseX + (int) (t * slideShift());
 
+        // The square "more settings" button of the selected row opens the settings panel.
+        if (this.focus >= 0 && this.focus < this.modules.size()) {
+            PhiModule module = this.modules.get(this.focus);
+
+            if (module.hasSettings()) {
+                float[] gear = gearBounds();
+
+                if (PhiSkew.contains(mx, mouseY, gear[0], gear[1], GEAR_SIZE * this.uiScale,
+                        GEAR_SIZE * this.uiScale)) {
+                    openSettings(this.focus);
+                    return;
+                }
+            }
+        }
+
+        // The toggle switch of the detail panel.
+        this.detailToggle.mouseClicked(mx, mouseY, mouseButton);
+
+        // The row body selects the module and slides it to the center.
         for (int i = 0; i < this.modules.size(); i++) {
-            float[] row = rowBounds(i, cursor);
+            float rowY = rowY(i);
 
-            cursor = row[0] + row[3] + ROW_GAP * this.uiScale;
-
-            if (!PhiSkew.contains(mouseX, mouseY, row[0], row[1], row[2], row[3])) {
+            if (!PhiSkew.contains(mx, mouseY, listX(), rowY, listW(), ROW_HEIGHT * this.uiScale)) {
                 continue;
             }
 
-            // The gear opens the settings panel; it takes precedence over the row body.
-            if (row[4] >= 0.0F && PhiSkew.contains(mouseX, mouseY, row[4], row[5],
-                    GEAR_SIZE * this.uiScale, GEAR_SIZE * this.uiScale)) {
-                openSettings(i);
-                return;
+            if (i != this.focus) {
+                snapTo(i);
             }
 
-            // The row body toggles the module, the same way the Soar client does it.
-            this.modules.get(i).setToggled(!this.modules.get(i).isToggled());
-            this.rowToggles.get(i).setValue(this.modules.get(i).isToggled());
             return;
         }
     }
@@ -241,40 +300,36 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
                     return;
                 }
 
-                if (mouseX >= layer[0] && mouseX <= layer[0] + layer[2]
-                        && mouseY >= layer[1] && mouseY <= layer[1] + layer[3]) {
+                if (PhiSkew.contains(mouseX, mouseY, layer[0], layer[1], layer[2], layer[3])) {
                     return;
                 }
             }
 
-            // A click outside of the layer closes it - or opens another combo box.
             this.comboOpenIndex = -1;
         }
 
-        float cursor = listTop() - this.settingsScroll.getOffset();
+        // The square back and reset buttons of the header.
+        for (int i = 0; i < 2; i++) {
+            float[] icon = iconBounds(i);
 
-        // The back and reset buttons of the header.
-        float[] back = iconBounds(1, cursor);
-        if (PhiSkew.contains(mouseX, mouseY, back[0], back[1], ICON_BUTTON * this.uiScale,
-                ICON_BUTTON * this.uiScale)) {
-            closeSettings();
-            return;
-        }
+            if (PhiSkew.contains(mouseX, mouseY, icon[0], icon[1], ICON_BUTTON * this.uiScale,
+                    ICON_BUTTON * this.uiScale)) {
+                if (i == 1) {
+                    closeSettings();
+                } else {
+                    module.reset();
+                    syncSettingToggles(module);
+                }
 
-        float[] reset = iconBounds(0, cursor);
-        if (PhiSkew.contains(mouseX, mouseY, reset[0], reset[1], ICON_BUTTON * this.uiScale,
-                ICON_BUTTON * this.uiScale)) {
-            module.reset();
-            syncSettingToggles(module);
-            return;
+                return;
+            }
         }
 
         List<PhiModuleSetting> settings = module.getSettings();
 
         for (int i = 0; i < settings.size(); i++) {
             PhiModuleSetting setting = settings.get(i);
-
-            float[] row = settingRow(i, cursor);
+            float[] cell = settingCell(i);
 
             switch (setting.getType()) {
                 case TOGGLE:
@@ -283,7 +338,7 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
                     }
                     break;
                 case SLIDER:
-                    float[] slider = sliderBounds(row, setting);
+                    float[] slider = sliderBounds(cell, setting);
 
                     if (mouseX >= slider[0] - HANDLE_SIZE * this.uiScale && mouseX <= slider[0] + slider[2]
                             + HANDLE_SIZE * this.uiScale && mouseY >= slider[1] - HANDLE_SIZE * this.uiScale
@@ -293,7 +348,7 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
                     }
                     break;
                 case COMBO:
-                    float[] combo = comboBounds(row);
+                    float[] combo = comboBounds(cell);
 
                     if (PhiSkew.contains(mouseX, mouseY, combo[0], combo[1], combo[2], combo[3])) {
                         this.comboOpenIndex = (this.comboOpenIndex == i ? -1 : i);
@@ -312,9 +367,10 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
      */
     private void openSettings(int index) {
         this.openModule = index;
+        this.closing = false;
         this.comboOpenIndex = -1;
         this.draggingSlider = -1;
-        this.settingsScroll.reset();
+        this.snapAnim = null;
         syncSettingToggles(this.modules.get(index));
 
         this.transition.reset();
@@ -322,7 +378,7 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
     }
 
     /**
-     * Leaves the settings panel and slides back to the list.
+     * Leaves the settings panel and slides back to the page.
      */
     private void closeSettings() {
         if (this.openModule < 0) {
@@ -331,7 +387,16 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
 
         this.comboOpenIndex = -1;
         this.draggingSlider = -1;
-        this.transition.setDirection(Direction.BACKWARDS);
+        this.closing = true;
+        this.transition.reset();
+    }
+
+    /**
+     * @return the progress of the page / settings transition (0 = page, 1 = settings panel).
+     */
+    private float transitionValue() {
+        float value = this.transition.getValueFloat();
+        return this.closing ? 1.0F - value : value;
     }
 
     /**
@@ -369,542 +434,209 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
      * @param mouseX  the current pointer x.
      */
     private void updateSlider(PhiModuleSetting setting, float[] slider, int mouseX) {
-        float ratio = (mouseX - slider[0]) / slider[2];
+        float ratio = Math.max(0.0F, Math.min(1.0F, (mouseX - slider[0]) / slider[2]));
+        float value = setting.getMin() + (setting.getMax() - setting.getMin()) * ratio;
 
-        setting.setFloat(setting.getMin() + (setting.getMax() - setting.getMin()) * ratio);
-    }
-
-    // ------------------------------------------------------------------ drawing
-
-    @Override
-    public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
-        long now = System.currentTimeMillis();
-        float deltaMs = Math.min(100.0F, now - this.lastFrame);
-        this.lastFrame = now;
-
-        this.listScroll.update(deltaMs);
-        this.settingsScroll.update(deltaMs);
-
-        if (this.openModule >= 0 && this.transition.isDone(Direction.BACKWARDS)) {
-            this.openModule = -1;
-            this.comboOpenIndex = -1;
-            this.draggingSlider = -1;
-        }
-
-        float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
-
-        nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level3());
-
-        float t = this.openModule >= 0 ? this.transition.getValueFloat() : 0.0F;
-        float shift = this.width * 0.6F;
-
-        if (t < 1.0F) {
-            drawListView(nvg, mouseX, mouseY, -t * shift, partialTicks);
-        }
-
-        if (t > 0.0F && this.openModule >= 0) {
-            drawSettingsView(nvg, mouseX, mouseY, (1.0F - t) * shift, partialTicks);
-        }
+        setting.setFloat(Math.max(setting.getMin(), Math.min(setting.getMax(), value)));
     }
 
     /**
-     * Draws the list of the modules, translated by {@code shiftX} (used for the slide transition).
+     * Selects the module and starts the snap animation that slides it to the vertical center.
+     *
+     * @param index the index of the module.
      */
-    private void drawListView(NanoVGManager nvg, int mouseX, int mouseY, float shiftX, float partialTicks) {
-        float u = this.uiScale;
-        float radius = PhiMetrics.CORNER_RADIUS * u;
+    private void snapTo(int index) {
+        this.focus = index;
+        this.snapFrom = this.listScroll.getOffset();
+        this.snapTo = offsetTarget(index);
 
-        float contentHeight = this.modules.size() * ROW_HEIGHT * u + (this.modules.size() - 1) * ROW_GAP * u;
-        this.listScroll.setContentSize(contentHeight + PANEL_PADDING * u, listHeight());
-
-        float cursor = listTop() - this.listScroll.getOffset();
-
-        // The hover of the rows is probed before drawing, so the reveal is drawn with its data.
-        boolean active = this.openModule < 0 && this.comboOpenIndex < 0;
-        int hoverRow = -1;
-        int hoverGear = -1;
-
-        if (active) {
-            float probe = cursor;
-
-            for (int i = 0; i < this.modules.size(); i++) {
-                float[] row = rowBounds(i, probe);
-
-                probe = row[0] + row[3] + ROW_GAP * u;
-
-                if (PhiSkew.contains(mouseX, mouseY, row[0] + shiftX, row[1], row[2], row[3])) {
-                    hoverRow = i;
-
-                    if (row[4] >= 0.0F && PhiSkew.contains(mouseX, mouseY, row[4] + shiftX, row[5],
-                            GEAR_SIZE * u, GEAR_SIZE * u)) {
-                        hoverGear = i;
-                    }
-                }
-            }
-        }
-
-        this.rowHover.update(active ? hoverRow : -1, mouseX, mouseY);
-        this.gearHover.update(active ? hoverGear : -1, mouseX, mouseY);
-
-        nvg.save();
-        nvg.translate(shiftX, 0.0F);
-
-        drawHeader(nvg, mouseX, mouseY, "Modules", this.modules.size() + " mods", false);
-
-        // The list is clipped to the slanted panel.
-        nvg.save();
-        float shapeOffset = PhiSkew.offset(this.height);
-        nvg.translate(this.x + shapeOffset, this.y);
-        nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        nvg.scissor(0.0F, listTop() - this.y, this.width, listHeight());
-        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
-        nvg.translate(-(this.x + shapeOffset), -this.y);
-
-        for (int i = 0; i < this.modules.size(); i++) {
-            float[] row = rowBounds(i, cursor);
-
-            cursor = row[0] + row[3] + ROW_GAP * u;
-
-            PhiModule module = this.modules.get(i);
-
-            nvg.drawSkewRect(row[0], row[1], row[2], row[3], radius, PhiTheme.level4());
-
-            if (this.rowHover.target == i) {
-                PhiRipple.drawReveal(nvg, row[0], row[1], row[2], row[3], radius,
-                        this.rowHover.enterX - shiftX, this.rowHover.enterY, this.rowHover.progress, PhiTheme.level5());
-            }
-
-            // Name and description share one content rectangle.
-            float cL = PhiSkew.contentLeft(row[0], row[3], ROW_PADDING * u);
-            float titleSize = PhiMetrics.FONT_TITLE * u;
-            float bodySize = PhiMetrics.FONT_BODY * u;
-
-            float controlsLeft = row[4] >= 0.0F ? row[4] : row[6];
-            controlsLeft -= CONTROL_GAP * u;
-
-            float textHeight = titleSize * 1.25F + bodySize * 1.25F;
-            float nameY = row[1] + (row[3] - textHeight) * 0.5F;
-            float descY = nameY + titleSize * 1.25F;
-
-            String name = nvg.limitText(module.getName(), titleSize, Fonts.REGULAR, controlsLeft - cL);
-            String description = nvg.limitText(module.getDescription(), bodySize, Fonts.REGULAR, controlsLeft - cL);
-
-            nvg.drawText(name, cL, nameY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
-            nvg.drawText(description, cL, descY, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
-
-            // The gear - the "more settings" entry of the modules with parameters.
-            if (row[4] >= 0.0F) {
-                nvg.drawSkewRect(row[4], row[5], GEAR_SIZE * u, GEAR_SIZE * u, radius * 0.6F, PhiTheme.level3());
-
-                if (this.gearHover.target == i) {
-                    PhiRipple.drawReveal(nvg, row[4], row[5], GEAR_SIZE * u, GEAR_SIZE * u, radius * 0.6F,
-                            this.gearHover.enterX - shiftX, this.gearHover.enterY, this.gearHover.progress,
-                            PhiTheme.level5());
-                }
-
-                float centerX = row[4] + (GEAR_SIZE * u + PhiSkew.offset(GEAR_SIZE * u)) * 0.5F;
-                float centerY = row[5] + GEAR_SIZE * u * 0.5F;
-
-                PhiIcons.MORE_SETTINGS.draw(nvg, centerX, centerY, GEAR_SIZE * u * 0.78F,
-                        this.gearHover.target == i ? PhiTheme.accent() : PhiTheme.textSecondary());
-            }
-
-            // The toggle switch of the row.
-            PhiToggle toggle = this.rowToggles.get(i);
-            toggle.setX(row[6]);
-            toggle.setY(row[7]);
-            toggle.draw(nvg, mouseX - (int) shiftX, mouseY, partialTicks);
-        }
-
-        nvg.restore();
-        nvg.restore();
-    }
-
-    /**
-     * Draws the header line of a view: the title on the left, the counter or the icon buttons on the
-     * right, and a separator below.
-     */
-    private void drawHeader(NanoVGManager nvg, int mouseX, int mouseY, String title, String counter,
-                            boolean settings) {
-        float u = this.uiScale;
-        float[] line = headerLineBounds();
-
-        float cL = line[0] + ROW_PADDING * u;
-        float cR = line[0] + line[1] - ROW_PADDING * u;
-
-        float titleSize = PhiMetrics.FONT_TITLE * u;
-
-        nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR, cR - cL), cL, this.y + 10.0F * u,
-                PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
-
-        if (!settings) {
-            float bodySize = PhiMetrics.FONT_BODY * u;
-
-            nvg.drawText(counter, cR - nvg.textWidth(counter, bodySize, Fonts.REGULAR), this.y + 13.0F * u,
-                    PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
-
-            nvg.drawLine(cL, listTop() - 4.0F * u, cR, listTop() - 4.0F * u, PhiTheme.level4(), 1.0F * u);
-        }
-
-        if (settings) {
-            // The reset and back buttons of the settings panel.
-            float cursor = listTop() - this.settingsScroll.getOffset();
-            int hoverIcon = -1;
-
-            if (this.openModule >= 0 && this.transition.getValueFloat() >= 1.0F) {
-                for (int i = 0; i < 2; i++) {
-                    float[] icon = iconBounds(i, cursor);
-
-                    if (PhiSkew.contains(mouseX, mouseY, icon[0], icon[1], ICON_BUTTON * u, ICON_BUTTON * u)) {
-                        hoverIcon = i;
-                    }
-                }
-            }
-
-            this.iconHover.update(hoverIcon, mouseX, mouseY);
-
-            float radius = PhiMetrics.CORNER_RADIUS * u;
-
-            for (int i = 0; i < 2; i++) {
-                float[] icon = iconBounds(i, cursor);
-
-                nvg.drawSkewRect(icon[0], icon[1], ICON_BUTTON * u, ICON_BUTTON * u, radius * 0.6F,
-                        PhiTheme.level3());
-
-                if (this.iconHover.target == i) {
-                    PhiRipple.drawReveal(nvg, icon[0], icon[1], ICON_BUTTON * u, ICON_BUTTON * u, radius * 0.6F,
-                            this.iconHover.enterX, this.iconHover.enterY, this.iconHover.progress, PhiTheme.level5());
-                }
-
-                float centerX = icon[0] + (ICON_BUTTON * u + PhiSkew.offset(ICON_BUTTON * u)) * 0.5F;
-                float centerY = icon[1] + ICON_BUTTON * u * 0.5F;
-                int color = this.iconHover.target == i ? PhiTheme.accent() : PhiTheme.textSecondary();
-
-                (i == 1 ? PhiIcons.PREVIOUS : PhiIcons.RESET).draw(nvg, centerX, centerY, ICON_BUTTON * u * 0.6F,
-                        color);
-            }
-        }
-    }
-
-    /**
-     * Draws the settings panel of the open module, translated by {@code shiftX}.
-     */
-    private void drawSettingsView(NanoVGManager nvg, int mouseX, int mouseY, float shiftX, float partialTicks) {
-        if (this.openModule < 0) {
+        if (Math.abs(this.snapTo - this.snapFrom) < 0.5F) {
+            this.snapAnim = null;
             return;
         }
 
-        float u = this.uiScale;
-        float radius = PhiMetrics.CORNER_RADIUS * u;
-
-        PhiModule module = this.modules.get(this.openModule);
-        List<PhiModuleSetting> settings = module.getSettings();
-
-        int rows = (settings.size() + 1) / 2;
-        this.settingsScroll.setContentSize(rows * SETTING_ROW_HEIGHT * u, listHeight());
-
-        float cursor = listTop() - this.settingsScroll.getOffset();
-
-        // The sliders take the pointer while they are dragged.
-        for (int i = 0; i < settings.size(); i++) {
-            if (i == this.draggingSlider && settings.get(i).getType() == PhiModuleSetting.Type.SLIDER) {
-                updateSlider(settings.get(i), sliderBounds(settingRow(i, cursor), settings.get(i)), mouseX);
-            }
-        }
-
-        int hoverCombo = -1;
-
-        if (this.comboOpenIndex < 0 && this.transition.getValueFloat() >= 1.0F) {
-            for (int i = 0; i < settings.size(); i++) {
-                if (settings.get(i).getType() != PhiModuleSetting.Type.COMBO) {
-                    continue;
-                }
-
-                float[] combo = comboBounds(settingRow(i, cursor));
-
-                if (PhiSkew.contains(mouseX, mouseY, combo[0] + shiftX, combo[1], combo[2], combo[3])) {
-                    hoverCombo = i;
-                }
-            }
-        }
-
-        this.comboHover.update(hoverCombo, mouseX, mouseY);
-
-        nvg.save();
-        nvg.translate(shiftX, 0.0F);
-
-        drawHeader(nvg, mouseX, mouseY, module.getName(), null, true);
-
-        nvg.save();
-        float shapeOffset = PhiSkew.offset(this.height);
-        nvg.translate(this.x + shapeOffset, this.y);
-        nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        nvg.scissor(0.0F, listTop() - this.y, this.width, listHeight());
-        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
-        nvg.translate(-(this.x + shapeOffset), -this.y);
-
-        float bodySize = PhiMetrics.FONT_BODY * u;
-
-        for (int i = 0; i < settings.size(); i++) {
-            PhiModuleSetting setting = settings.get(i);
-            float[] row = settingRow(i, cursor);
-
-            switch (setting.getType()) {
-                case TOGGLE: {
-                    String name = nvg.limitText(setting.getName(), bodySize, Fonts.REGULAR, row[1] * 0.55F);
-
-                    nvg.drawText(name, row[0], row[2] + (SETTING_ROW_HEIGHT * u - bodySize) * 0.5F,
-                            PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
-
-                    PhiToggle toggle = i < this.settingToggles.size() ? this.settingToggles.get(i) : null;
-
-                    if (toggle != null) {
-                        toggle.setX(row[0] + row[1] - TOGGLE_WIDTH * u);
-                        toggle.setY(row[2] + (SETTING_ROW_HEIGHT * u - TOGGLE_HEIGHT * u) * 0.5F);
-                        toggle.draw(nvg, mouseX - (int) shiftX, mouseY, partialTicks);
-                    }
-                    break;
-                }
-                case SLIDER: {
-                    String name = nvg.limitText(setting.getName(), bodySize, Fonts.REGULAR, row[1] * 0.55F);
-
-                    nvg.drawText(name, row[0], row[2] + (SETTING_ROW_HEIGHT * u - bodySize) * 0.5F,
-                            PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
-
-                    drawSlider(nvg, setting, sliderBounds(row, setting));
-                    break;
-                }
-                case COMBO: {
-                    float[] combo = comboBounds(row);
-
-                    nvg.drawSkewRect(combo[0], combo[1], combo[2], combo[3], radius * 0.5F, PhiTheme.level4());
-
-                    if (this.comboHover.target == i || this.comboOpenIndex == i) {
-                        PhiRipple.drawReveal(nvg, combo[0], combo[1], combo[2], combo[3], radius * 0.5F,
-                                this.comboHover.enterX - shiftX, this.comboHover.enterY, this.comboHover.progress,
-                                PhiTheme.level5());
-                    }
-
-                    String value = setting.getOptions()[setting.getSelectedIndex()];
-                    String shown = nvg.limitText(value, bodySize, Fonts.REGULAR, combo[2] - ROW_PADDING * u);
-
-                    nvg.drawTextCentered(shown,
-                            combo[0] + (combo[2] + PhiSkew.offset(combo[3])) * 0.5F,
-                            combo[1] + (combo[3] - bodySize) * 0.5F, PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
-
-                    break;
-                }
-                default:
-                    break;
-            }
-        }
-
-        nvg.restore();
-        nvg.restore();
-
-        // The open combo box draws its options on top of everything, outside of the scissor.
-        drawComboLayer(nvg, mouseX, mouseY, shiftX);
-    }
-
-    /**
-     * Draws a slider: the track, the filled part and the handle, all slanted.
-     */
-    private void drawSlider(NanoVGManager nvg, PhiModuleSetting setting, float[] slider) {
-        float u = this.uiScale;
-        float radius = PhiMetrics.CORNER_RADIUS * u;
-        float ratio = (setting.getFloat() - setting.getMin()) / (setting.getMax() - setting.getMin());
-
-        nvg.drawSkewRect(slider[0], slider[1], slider[2], slider[3], radius * 0.4F, PhiTheme.level4());
-        nvg.drawSkewRect(slider[0], slider[1], slider[2] * ratio, slider[3], radius * 0.4F, PhiTheme.accent());
-
-        float handleX = slider[0] + (slider[2] - HANDLE_SIZE * u) * ratio;
-        float handleY = slider[1] - (HANDLE_SIZE * u - slider[3]) * 0.5F;
-
-        nvg.drawSkewRect(handleX, handleY, HANDLE_SIZE * u, HANDLE_SIZE * u, radius * 0.5F,
-                PhiTheme.withAlpha(PhiTheme.accent(), 0.85F));
-    }
-
-    /**
-     * Draws the open option layer of a combo box, if any.
-     */
-    private void drawComboLayer(NanoVGManager nvg, int mouseX, int mouseY, float shiftX) {
-        if (this.comboOpenIndex < 0 || this.openModule < 0) {
-            return;
-        }
-
-        PhiModule module = this.modules.get(this.openModule);
-
-        if (this.comboOpenIndex >= module.getSettings().size()) {
-            return;
-        }
-
-        PhiModuleSetting setting = module.getSettings().get(this.comboOpenIndex);
-
-        if (setting.getType() != PhiModuleSetting.Type.COMBO) {
-            return;
-        }
-
-        float u = this.uiScale;
-        float radius = PhiMetrics.CORNER_RADIUS * u;
-        float[] layer = comboLayerBounds(this.comboOpenIndex);
-
-        if (layer == null) {
-            return;
-        }
-
-        int hoverOption = optionAt(layer, mouseX, mouseY);
-
-        this.optionHover.update(hoverOption, mouseX, mouseY);
-
-        nvg.save();
-        nvg.translate(shiftX, 0.0F);
-
-        nvg.drawSkewRect(layer[0], layer[1], layer[2], layer[3], radius * 0.7F, PhiTheme.level4());
-
-        float bodySize = PhiMetrics.FONT_BODY * u;
-        float optY = layer[1] + ROW_PADDING * u * 0.5F;
-
-        for (int i = 0; i < setting.getOptions().length; i++) {
-            if (this.optionHover.target == i) {
-                PhiRipple.drawReveal(nvg, layer[0], optY - ROW_PADDING * u * 0.5F, layer[2],
-                        COMBO_OPTION_HEIGHT * u, radius * 0.5F, this.optionHover.enterX - shiftX,
-                        this.optionHover.enterY, this.optionHover.progress, PhiTheme.level5());
-            }
-
-            String option = nvg.limitText(setting.getOptions()[i], bodySize, Fonts.REGULAR,
-                    layer[2] - ROW_PADDING * u);
-
-            nvg.drawText(option, layer[0] + ROW_PADDING * u * 0.5F, optY + (COMBO_OPTION_HEIGHT * u - bodySize) * 0.5F,
-                    i == setting.getSelectedIndex() ? PhiTheme.accent() : PhiTheme.textSecondary(), bodySize,
-                    Fonts.REGULAR);
-
-            optY += COMBO_OPTION_HEIGHT * u;
-        }
-
-        nvg.restore();
+        this.snapAnim = new EaseOutCubic(SNAP_MS, 1.0D);
+        this.snapAnim.setDirection(Direction.FORWARDS);
     }
 
     // ------------------------------------------------------------------ geometry
 
     /**
-     * @return the top y of the scrollable area (below the header).
+     * @return the top y of the content area (below the header).
      */
     private float listTop() {
-        return this.y + 48.0F * this.uiScale;
+        return this.y + HEADER_HEIGHT * this.uiScale;
     }
 
     /**
-     * @return the height of the scrollable area.
+     * @return the bottom y of the content area.
      */
-    private float listHeight() {
-        return this.height - 48.0F * this.uiScale - PANEL_PADDING * this.uiScale;
+    private float listBottom() {
+        return this.y + this.height - PANEL_PADDING * this.uiScale;
     }
 
     /**
-     * @return the content line of the header: its left x on the slanted edge and its width
-     *         ({@code {x, width}}).
+     * @return the height of the visible list.
      */
-    private float[] headerLineBounds() {
-        float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height, listTop()) + PANEL_PADDING * this.uiScale;
-        float rowW = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, listTop())
-                - PANEL_PADDING * this.uiScale - rowX;
-
-        return new float[] { rowX, rowW };
+    private float viewportHeight() {
+        return Math.max(1.0F, listBottom() - listTop());
     }
 
     /**
-     * @param index  the index of the module.
-     * @param cursor the top y of the row in list layout space.
-     * @return the bounds of the row: {@code {x, y, width, height, gearX, gearY, toggleX, toggleY}}.
-     *         {@code gearX} is negative when the module has no settings.
+     * @return the pitch between two rows of the dial list.
      */
-    private float[] rowBounds(int index, float cursor) {
+    private float pitch() {
+        return (ROW_HEIGHT + ROW_GAP) * this.uiScale;
+    }
+
+    /**
+     * @return the left x of the content rectangle the whole page shares.
+     */
+    private float contentLeft() {
+        return PhiSkew.contentLeft(this.x, this.height, PANEL_PADDING * this.uiScale);
+    }
+
+    /**
+     * @return the right x of the content rectangle the whole page shares.
+     */
+    private float contentRight() {
+        return PhiSkew.contentRight(this.x, this.width, PANEL_PADDING * this.uiScale);
+    }
+
+    /**
+     * @return the left x of the dial list.
+     */
+    private float listX() {
+        return contentLeft();
+    }
+
+    /**
+     * @return the width of the dial list.
+     */
+    private float listW() {
+        return (contentRight() - contentLeft()) * LIST_RATIO - DETAIL_GAP * 0.5F * this.uiScale;
+    }
+
+    /**
+     * @return the left x of the detail panel.
+     */
+    private float detailX() {
+        return listX() + listW() + DETAIL_GAP * this.uiScale;
+    }
+
+    /**
+     * @return the width of the detail panel.
+     */
+    private float detailW() {
+        return contentRight() - detailX();
+    }
+
+    /**
+     * @return the left x of the text of a dial row.
+     */
+    private float rowContentLeft() {
+        return listX() + PhiSkew.offset(ROW_HEIGHT * this.uiScale) + ROW_PADDING * this.uiScale;
+    }
+
+    /**
+     * @param index the index of a module.
+     * @return the scroll offset that centers the module in the viewport.
+     */
+    private float offsetTarget(int index) {
+        return index * pitch() + ROW_HEIGHT * this.uiScale * 0.5F - viewportHeight() * 0.5F;
+    }
+
+    /**
+     * @param index the index of a module.
+     * @return the top y of its row.
+     */
+    private float rowY(int index) {
+        return listTop() + index * pitch() - this.listScroll.getOffset();
+    }
+
+    /**
+     * @return the index of the module that is closest to the vertical center.
+     */
+    private int focusIndex() {
+        int index = Math.round((this.listScroll.getOffset() - offsetTarget(0)) / pitch());
+        return Math.max(0, Math.min(this.modules.size() - 1, index));
+    }
+
+    /**
+     * @return the bounds of the square "more settings" button of the selected row
+     *         ({@code {x, y}}).
+     */
+    private float[] gearBounds() {
         float u = this.uiScale;
-        float rowH = ROW_HEIGHT * u;
-        float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height, cursor) + PANEL_PADDING * u;
-        float rowW = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, cursor)
-                - PANEL_PADDING * u - rowX;
-        float cR = PhiSkew.contentRight(rowX, rowW, ROW_PADDING * u);
+        float x = listX() + listW() - GEAR_SIZE * u * 0.5F;
+        float y = rowY(this.focus) + (ROW_HEIGHT * u - GEAR_SIZE * u) * 0.5F;
 
-        float gearX = -1.0F;
-        float gearY = -1.0F;
-        float toggleX;
-
-        if (this.modules.get(index).hasSettings()) {
-            // The right x is cleared of the slant, so the top-right corner of the gear stays inside.
-            gearX = cR - GEAR_SIZE * u - PhiSkew.offset(GEAR_SIZE * u);
-            gearY = cursor + (rowH - GEAR_SIZE * u) * 0.5F;
-            toggleX = gearX - PhiSkew.offset(TOGGLE_HEIGHT * u) - CONTROL_GAP * u - TOGGLE_WIDTH * u;
-        } else {
-            toggleX = cR - PhiSkew.offset(TOGGLE_HEIGHT * u) - TOGGLE_WIDTH * u;
-        }
-
-        float toggleY = cursor + (rowH - TOGGLE_HEIGHT * u) * 0.5F;
-
-        return new float[] { rowX, cursor, rowW, rowH, gearX, gearY, toggleX, toggleY };
+        return new float[] { x, y };
     }
 
     /**
-     * @param index  0 = reset, 1 = back.
-     * @param cursor the top y of the header line.
-     * @return the bounds of the icon button ({@code {x, y}}).
+     * @return how far the page and the settings panel travel during the slide transition.
      */
-    private float[] iconBounds(int index, float cursor) {
-        float u = this.uiScale;
-        float[] line = headerLineBounds();
-        float cR = line[0] + line[1] - ROW_PADDING * u;
+    private float slideShift() {
+        return this.width * 0.55F;
+    }
 
-        float backX = cR - ICON_BUTTON * u - PhiSkew.offset(ICON_BUTTON * u);
-        float iconY = listTop() - 42.0F * u;
-        float resetX = backX - PhiSkew.offset(ICON_BUTTON * u) - CONTROL_GAP * u - ICON_BUTTON * u;
+    /**
+     * @param index 0 = reset, 1 = back.
+     * @return the bounds of the square header button ({@code {x, y}}).
+     */
+    private float[] iconBounds(int index) {
+        float u = this.uiScale;
+        float cR = contentRight();
+
+        float backX = cR - ICON_BUTTON * u;
+        float iconY = this.y + 12.0F * u;
+        float resetX = backX - ICON_BUTTON * u - 8.0F * u;
 
         return index == 1 ? new float[] { backX, iconY } : new float[] { resetX, iconY };
     }
 
     /**
-     * @param index  the index of the setting.
-     * @param cursor the top y of the grid in layout space.
-     * @return the bounds of the cell of the setting: {@code {columnX, columnWidth, rowTop}}.
+     * @param index the index of the setting.
+     * @return the bounds of the cell of the setting: {@code {x, width, top}}.
      */
-    private float[] settingRow(int index, float cursor) {
+    private float[] settingCell(int index) {
         float u = this.uiScale;
         int col = index % 2;
         int rowIdx = index / 2;
 
-        float rowTop = cursor + rowIdx * SETTING_ROW_HEIGHT * u;
-        float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowTop) + PANEL_PADDING * u;
-        float rowW = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, rowTop)
-                - PANEL_PADDING * u - rowX;
-        float colW = (rowW - ROW_PADDING * u * 2.0F - SETTING_COL_GAP * u) * 0.5F;
-        float colX = rowX + ROW_PADDING * u + col * (colW + SETTING_COL_GAP * u);
+        float contentW = contentRight() - contentLeft();
+        float cellW = (contentW - ROW_PADDING * u * 2.0F - SETTING_COL_GAP * u) * 0.5F;
+        float cellX = contentLeft() + ROW_PADDING * u + col * (cellW + SETTING_COL_GAP * u);
+        float top = listTop() + 10.0F * u + rowIdx * SETTING_ROW_HEIGHT * u;
 
-        return new float[] { colX, colW, rowTop };
+        return new float[] { cellX, cellW, top };
     }
 
     /**
-     * @param row     the cell of the setting.
+     * @param cell    the cell of the setting.
      * @param setting the slider setting.
      * @return the bounds of the track ({@code {x, y, width, height}}).
      */
-    private float[] sliderBounds(float[] row, PhiModuleSetting setting) {
+    private float[] sliderBounds(float[] cell, PhiModuleSetting setting) {
         float u = this.uiScale;
-        float trackW = row[1] * 0.45F;
-        float trackX = row[0] + row[1] - trackW;
-        float trackY = row[2] + (SETTING_ROW_HEIGHT * u - SLIDER_HEIGHT * u) * 0.5F;
+        float trackW = cell[1] * 0.45F;
+        float trackX = cell[0] + cell[1] - trackW;
+        float trackY = cell[2] + (SETTING_ROW_HEIGHT * u - SLIDER_HEIGHT * u) * 0.5F;
 
         return new float[] { trackX, trackY, trackW, SLIDER_HEIGHT * u };
     }
 
     /**
-     * @param row the cell of the setting.
+     * @param cell the cell of the setting.
      * @return the bounds of the combo box button ({@code {x, y, width, height}}).
      */
-    private float[] comboBounds(float[] row) {
+    private float[] comboBounds(float[] cell) {
         float u = this.uiScale;
-        float w = row[1] * 0.5F;
+        float w = cell[1] * 0.5F;
         float h = COMBO_HEIGHT * u;
-        float x = row[0] + row[1] - w;
-        float y = row[2] + (SETTING_ROW_HEIGHT * u - h) * 0.5F;
+        float x = cell[0] + cell[1] - w;
+        float y = cell[2] + (SETTING_ROW_HEIGHT * u - h) * 0.5F;
 
         return new float[] { x, y, w, h };
     }
@@ -928,15 +660,14 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
         }
 
         float u = this.uiScale;
-        float cursor = listTop() - this.settingsScroll.getOffset();
-        float[] combo = comboBounds(settingRow(index, cursor));
+        float[] combo = comboBounds(settingCell(index));
 
         float w = combo[2] + ROW_PADDING * u * 2.0F;
         float h = setting.getOptions().length * COMBO_OPTION_HEIGHT * u + ROW_PADDING * u;
         float x = combo[0] - ROW_PADDING * u;
         float y = combo[1] + combo[3] + 4.0F * u;
 
-        if (y + h > this.y + this.height - PANEL_PADDING * u) {
+        if (y + h > listBottom()) {
             y = combo[1] - 4.0F * u - h;
         }
 
@@ -952,7 +683,7 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
     private int optionAt(float[] layer, int mouseX, int mouseY) {
         float u = this.uiScale;
 
-        if (mouseX < layer[0] || mouseX > layer[0] + layer[2] || mouseY < layer[1] || mouseY > layer[1] + layer[3]) {
+        if (!PhiSkew.contains(mouseX, mouseY, layer[0], layer[1], layer[2], layer[3])) {
             return -1;
         }
 
@@ -961,7 +692,499 @@ public class PhiModulePanel extends PhiComponent implements PhiScrollable {
         return index;
     }
 
-    // ------------------------------------------------------------------ hover tracking
+    // ------------------------------------------------------------------ drawing
+
+    @Override
+    public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        drawFrame(nvg, mouseX, mouseY, partialTicks);
+    }
+
+    /**
+     * Advances the animations and draws the page: the dial list and the detail panel slide out to the
+     * left while the settings panel slides in from the right.
+     */
+    private void drawFrame(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+
+        update(deltaMs, now);
+
+        float t = transitionValue();
+        float shift = slideShift() * t;
+
+        // The component is clipped to its bounding box, so the sliding views never draw over the
+        // navigation band or the rest of the hub.
+        nvg.save();
+        nvg.scissor(this.x, this.y, this.width, this.height);
+
+        nvg.translate(-shift, 0.0F);
+        drawPage(nvg, mouseX + shift, mouseY, partialTicks);
+
+        // The settings panel travels the rest of the way back, so it ends exactly where the page was.
+        nvg.translate(slideShift(), 0.0F);
+
+        if (this.openModule >= 0) {
+            drawSettingsPanel(nvg, mouseX, mouseY, partialTicks);
+        }
+
+        nvg.restore();
+        nvg.resetScissor();
+    }
+
+    /**
+     * Advances the scroll state, the snap-to-center animation and the page / settings transition.
+     */
+    private void update(float deltaMs, long now) {
+        if (!this.scrollInitialized) {
+            this.scrollInitialized = true;
+
+            this.listScroll.setContentSize(this.modules.size() * pitch(), viewportHeight());
+            this.listScroll.setOffsetRange(offsetTarget(0), offsetTarget(this.modules.size() - 1));
+            this.listScroll.setOffset(offsetTarget(0));
+        }
+
+        // Once the closing slide is over, the page view is shown again.
+        if (this.closing && this.transition.getValueFloat() >= 1.0F) {
+            this.closing = false;
+            this.openModule = -1;
+        }
+
+        // The snap animation controls the offset frame by frame.
+        if (this.snapAnim != null) {
+            float progress = this.snapAnim.getValueFloat();
+
+            this.listScroll.setOffset(this.snapFrom + (this.snapTo - this.snapFrom) * progress);
+
+            if (progress >= 1.0F) {
+                this.snapAnim = null;
+            }
+
+            return;
+        }
+
+        this.listScroll.update(deltaMs);
+
+        if (this.openModule >= 0) {
+            return;
+        }
+
+        // While the list moves, the focus follows the row that currently sits in the center; once the
+        // wheel input settled, the nearest row is snapped to the center.
+        if (this.listScroll.getVelocity() != 0.0F) {
+            this.focus = focusIndex();
+            return;
+        }
+
+        if (now - this.lastWheelTime < SNAP_IDLE_MS) {
+            return;
+        }
+
+        int target = focusIndex();
+
+        if (Math.abs(this.listScroll.getOffset() - offsetTarget(target)) > 0.5F) {
+            snapTo(target);
+        } else {
+            this.focus = target;
+        }
+    }
+
+    /**
+     * Draws the page view: the dial list with its fade masks and the detail panel.
+     */
+    private void drawPage(NanoVGManager nvg, float mouseX, float mouseY, float partialTicks) {
+        float u = this.uiScale;
+        float rowH = ROW_HEIGHT * u;
+
+        int first = Math.max(0, (int) Math.floor((this.listScroll.getOffset() - rowH) / pitch()));
+        int last = Math.min(this.modules.size() - 1,
+                (int) Math.ceil((viewportHeight() + this.listScroll.getOffset()) / pitch()));
+
+        int hoverIndex = -1;
+
+        for (int i = first; i <= last; i++) {
+            if (PhiSkew.contains(mouseX, mouseY, listX(), rowY(i), listW(), rowH)) {
+                hoverIndex = i;
+                break;
+            }
+        }
+
+        this.rowHover.update(hoverIndex, mouseX, mouseY);
+
+        for (int i = first; i <= last; i++) {
+            drawRow(nvg, i, mouseX, mouseY);
+        }
+
+        drawListFades(nvg);
+        drawDetail(nvg, mouseX, mouseY, partialTicks);
+    }
+
+    /**
+     * Draws a single row of the dial list.
+     *
+     * @param nvg    the NanoVG drawing context.
+     * @param index  the index of the module.
+     * @param mouseX the pointer x.
+     * @param mouseY the pointer y.
+     */
+    private void drawRow(NanoVGManager nvg, int index, float mouseX, float mouseY) {
+        float u = this.uiScale;
+        float x = listX();
+        float w = listW();
+        float y = rowY(index);
+        float h = ROW_HEIGHT * u;
+        float radius = PhiMetrics.CORNER_RADIUS * u;
+
+        PhiModule module = this.modules.get(index);
+        float textX = rowContentLeft();
+        float textW = w - (textX - x) - GEAR_SIZE * u;
+
+        if (index == this.focus) {
+            // The selected row: L0 background, name, description and the "more settings" square.
+            nvg.drawSkewRect(x, y, w, h, radius, PhiTheme.level0());
+
+            float nameSize = 13.0F * u;
+            float descSize = 10.5F * u;
+
+            nvg.drawText(nvg.limitText(module.getName(), nameSize, Fonts.REGULAR, textW),
+                    textX, y + 6.0F * u, PhiTheme.textPrimary(), nameSize, Fonts.REGULAR);
+            nvg.drawText(nvg.limitText(module.getDescription(), descSize, Fonts.REGULAR, textW),
+                    textX, y + 23.0F * u, PhiTheme.textSecondary(), descSize, Fonts.REGULAR);
+
+            if (module.hasSettings()) {
+                drawGearButton(nvg, mouseX, mouseY);
+            }
+
+            return;
+        }
+
+        // An unselected row: hover reveal and the dim name.
+        if (this.rowHover.target == index) {
+            PhiRipple.drawReveal(nvg, x, y, w, h, radius, this.rowHover.enterX, this.rowHover.enterY,
+                    this.rowHover.progress, PhiTheme.level4());
+        }
+
+        float nameSize = 12.5F * u;
+
+        nvg.drawText(nvg.limitText(module.getName(), nameSize, Fonts.REGULAR,
+                w - (textX - x) - ROW_PADDING * u), textX, y + (h - nameSize) * 0.5F,
+                PhiTheme.textSecondary(), nameSize, Fonts.REGULAR);
+    }
+
+    /**
+     * Draws the square "more settings" button on the right edge of the selected row: a plain
+     * parallelogram (L5) marked with three dots - no gear icon.
+     *
+     * @param nvg    the NanoVG drawing context.
+     * @param mouseX the pointer x.
+     * @param mouseY the pointer y.
+     */
+    private void drawGearButton(NanoVGManager nvg, float mouseX, float mouseY) {
+        float u = this.uiScale;
+        float[] bounds = gearBounds();
+        float x = bounds[0];
+        float y = bounds[1];
+        float size = GEAR_SIZE * u;
+        float radius = size * 0.3F;
+
+        boolean inside = PhiSkew.contains(mouseX, mouseY, x, y, size, size);
+        this.gearHover.update(inside ? 0 : -1, mouseX, mouseY);
+
+        int background = this.gearHover.target >= 0
+                ? PhiTheme.mix(PhiTheme.level5(), PhiTheme.textPrimary(), 0.12F)
+                : PhiTheme.level5();
+
+        nvg.drawSkewRect(x, y, size, size, radius, background);
+
+        float centerX = x + size * 0.5F;
+        float centerY = y + size * 0.5F;
+        float gap = size * 0.20F;
+        float dotRadius = Math.max(1.0F, size * 0.06F);
+        int dots = PhiTheme.textPrimary();
+
+        nvg.drawCircle(centerX - gap, centerY, dotRadius, dots);
+        nvg.drawCircle(centerX, centerY, dotRadius, dots);
+        nvg.drawCircle(centerX + gap, centerY, dotRadius, dots);
+    }
+
+    /**
+     * Draws the gradient masks that fade the upper and the lower edge of the dial list into the
+     * background of the page.
+     */
+    private void drawListFades(NanoVGManager nvg) {
+        float u = this.uiScale;
+        float fade = FADE_HEIGHT * u;
+        float x = listX();
+        float w = listW();
+        int background = PhiTheme.level2();
+        int transparent = PhiTheme.withAlpha(background, 0.0F);
+
+        // Upper edge: opaque background fading into transparency.
+        nvg.beginPath();
+        nvg.addRoundedRect(x, listTop(), w, fade, 0.0F);
+        nvg.fillPathGradient(background, transparent, x, listTop(), x, listTop() + fade);
+
+        // Lower edge: transparency fading into the opaque background.
+        nvg.beginPath();
+        nvg.addRoundedRect(x, listBottom() - fade, w, fade, 0.0F);
+        nvg.fillPathGradient(transparent, background, x, listBottom() - fade, x, listBottom());
+    }
+
+    /**
+     * Draws the detail panel: the large card with the icon of the selected module, the decorative
+     * strip and the toggle switch in the lower right corner.
+     */
+    private void drawDetail(NanoVGManager nvg, float mouseX, float mouseY, float partialTicks) {
+        float u = this.uiScale;
+        float x = detailX();
+        float w = detailW();
+        float top = listTop();
+        float radius = PhiMetrics.CORNER_RADIUS * u;
+
+        PhiModule module = this.focus >= 0 && this.focus < this.modules.size()
+                ? this.modules.get(this.focus) : null;
+
+        // The large card with the centered module icon.
+        float cardHeight = viewportHeight() * 0.55F;
+        nvg.drawSkewRect(x, top, w, cardHeight, radius, PhiTheme.level3());
+
+        if (module != null) {
+            module.getIcon().draw(nvg, x + w * 0.5F, top + cardHeight * 0.5F,
+                    DETAIL_ICON_SIZE * u, PhiTheme.textPrimary());
+        }
+
+        // The plain decorative strip.
+        float stripTop = top + cardHeight + 14.0F * u;
+        nvg.drawSkewRect(x, stripTop, w, DETAIL_STRIP_HEIGHT * u, DETAIL_STRIP_HEIGHT * u * 0.5F,
+                PhiTheme.level3());
+
+        // The toggle switch in the lower right corner.
+        float toggleX = x + w - TOGGLE_WIDTH * u - ROW_PADDING * u;
+        float toggleY = listBottom() - TOGGLE_HEIGHT * u - ROW_PADDING * u;
+
+        this.detailToggle.setX(toggleX);
+        this.detailToggle.setY(toggleY);
+        this.detailToggle.setValue(module != null && module.isToggled());
+        this.detailToggle.draw(nvg, (int) mouseX, (int) mouseY, partialTicks);
+    }
+
+    /**
+     * Draws the settings panel: the header, the parameter grid and the open combo box layer.
+     */
+    private void drawSettingsPanel(NanoVGManager nvg, float mouseX, float mouseY, float partialTicks) {
+        PhiModule module = this.modules.get(this.openModule);
+        float u = this.uiScale;
+
+        // The module name on the left.
+        float titleSize = 15.0F * u;
+        float titleMaxW = iconBounds(0)[0] - contentLeft() - 12.0F * u;
+
+        nvg.drawText(nvg.limitText(module.getName(), titleSize, Fonts.REGULAR, titleMaxW),
+                contentLeft(), this.y + 12.0F * u, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+
+        // The square reset and back buttons.
+        for (int i = 0; i < 2; i++) {
+            float[] bounds = iconBounds(i);
+            float x = bounds[0];
+            float y = bounds[1];
+            float size = ICON_BUTTON * u;
+
+            boolean inside = PhiSkew.contains(mouseX, mouseY, x, y, size, size);
+            this.iconHover.update(inside ? i : -1, mouseX, mouseY);
+
+            int background = this.iconHover.target == i ? PhiTheme.level4() : PhiTheme.level3();
+            nvg.drawSkewRect(x, y, size, size, size * 0.3F, background);
+
+            PhiIcon icon = i == 0 ? PhiIcons.RESET : PhiIcons.PREVIOUS;
+            icon.draw(nvg, x + size * 0.5F, y + size * 0.5F, size * 0.55F, PhiTheme.textPrimary());
+        }
+
+        // The two-column grid of the parameters.
+        List<PhiModuleSetting> settings = module.getSettings();
+
+        for (int i = 0; i < settings.size(); i++) {
+            drawSetting(nvg, settings.get(i), i, mouseX, mouseY, partialTicks);
+        }
+
+        // The open combo box layer covers everything else.
+        if (this.comboOpenIndex >= 0) {
+            drawComboLayer(nvg, module, this.comboOpenIndex, mouseX, mouseY);
+        }
+    }
+
+    /**
+     * Draws one cell of the settings grid: the name of the parameter and its control.
+     */
+    private void drawSetting(NanoVGManager nvg, PhiModuleSetting setting, int index,
+            float mouseX, float mouseY, float partialTicks) {
+        float u = this.uiScale;
+        float[] cell = settingCell(index);
+        float x = cell[0];
+        float width = cell[1];
+        float top = cell[2];
+        float rowH = SETTING_ROW_HEIGHT * u;
+        float nameSize = 12.5F * u;
+
+        float nameMaxW = width * 0.55F;
+        nvg.drawText(nvg.limitText(setting.getName(), nameSize, Fonts.REGULAR, nameMaxW),
+                x, top + 3.0F * u, PhiTheme.textSecondary(), nameSize, Fonts.REGULAR);
+
+        switch (setting.getType()) {
+            case TOGGLE: {
+                PhiToggle toggle = this.settingToggles.get(index);
+
+                toggle.setX(x + width - TOGGLE_WIDTH * u);
+                toggle.setY(top + (rowH - TOGGLE_HEIGHT * u) * 0.5F);
+                toggle.draw(nvg, (int) mouseX, (int) mouseY, partialTicks);
+
+                nvg.drawText(toggle.isValue() ? "On" : "Off", x, top + 23.0F * u,
+                        PhiTheme.textSecondary(), 10.5F * u, Fonts.REGULAR);
+                break;
+            }
+            case SLIDER:
+                drawSlider(nvg, setting, cell, index);
+                break;
+            case COMBO:
+                drawCombo(nvg, setting, cell, index, mouseX, mouseY);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * Draws a slider setting: the track, the filled portion, the handle and the current value.
+     */
+    private void drawSlider(NanoVGManager nvg, PhiModuleSetting setting, float[] cell, int index) {
+        float u = this.uiScale;
+        float[] track = sliderBounds(cell, setting);
+        float x = track[0];
+        float y = track[1];
+        float w = track[2];
+        float h = track[3];
+        float ratio = sliderRatio(setting);
+
+        nvg.drawRect(x, y, w, h, PhiTheme.level3());
+
+        if (ratio > 0.0F) {
+            nvg.drawRect(x, y, w * ratio, h, PhiTheme.level5());
+        }
+
+        float handleSize = HANDLE_SIZE * u;
+        float handleX = x + w * ratio;
+        int handle = this.draggingSlider == index ? PhiTheme.level4() : PhiTheme.level5();
+
+        nvg.drawSkewRect(handleX - handleSize * 0.5F, y + h * 0.5F - handleSize * 0.5F,
+                handleSize, handleSize, handleSize * 0.3F, handle);
+
+        nvg.drawText(formatValue(setting.getFloat()), cell[0], cell[2] + 23.0F * u,
+                PhiTheme.textSecondary(), 10.5F * u, Fonts.REGULAR);
+    }
+
+    /**
+     * Draws a combo box setting: the button that shows the selected option.
+     */
+    private void drawCombo(NanoVGManager nvg, PhiModuleSetting setting, float[] cell, int index,
+            float mouseX, float mouseY) {
+        float u = this.uiScale;
+        float[] bounds = comboBounds(cell);
+        float x = bounds[0];
+        float y = bounds[1];
+        float w = bounds[2];
+        float h = bounds[3];
+
+        boolean inside = PhiSkew.contains(mouseX, mouseY, x, y, w, h);
+        this.comboHover.update(inside ? index : -1, mouseX, mouseY);
+
+        boolean open = this.comboOpenIndex == index;
+        int background = inside || open ? PhiTheme.level4() : PhiTheme.level3();
+
+        nvg.drawSkewRect(x, y, w, h, h * 0.3F, background);
+
+        String option = setting.getOptions()[setting.getSelectedIndex()];
+        float textSize = 10.5F * u;
+
+        nvg.drawText(nvg.limitText(option, textSize, Fonts.REGULAR, w - 10.0F * u),
+                x + 8.0F * u, y + (h - textSize) * 0.5F, PhiTheme.textPrimary(), textSize, Fonts.REGULAR);
+    }
+
+    /**
+     * Draws the option layer of an open combo box on top of everything else.
+     */
+    private void drawComboLayer(NanoVGManager nvg, PhiModule module, int index, float mouseX, float mouseY) {
+        PhiModuleSetting setting = module.getSettings().get(index);
+        float[] layer = comboLayerBounds(index);
+
+        if (layer == null) {
+            return;
+        }
+
+        float u = this.uiScale;
+        float x = layer[0];
+        float y = layer[1];
+        float w = layer[2];
+        float h = layer[3];
+        float optionH = COMBO_OPTION_HEIGHT * u;
+        float textSize = 10.5F * u;
+        float optionTop = y + ROW_PADDING * u * 0.5F;
+        String[] options = setting.getOptions();
+
+        nvg.drawSkewRect(x, y, w, h, h * 0.12F, PhiTheme.level1());
+
+        for (int i = 0; i < options.length; i++) {
+            float oy = optionTop + i * optionH;
+            float inset = 4.0F * u;
+
+            boolean hovered = PhiSkew.contains(mouseX, mouseY, x + inset, oy + 1.0F * u,
+                    w - inset * 2.0F, optionH - 2.0F * u);
+            this.optionHover.update(hovered ? index * 64 + i : -1, mouseX, mouseY);
+
+            boolean selected = i == setting.getSelectedIndex();
+
+            if (selected) {
+                nvg.drawSkewRect(x + inset, oy + 1.0F * u, w - inset * 2.0F, optionH - 2.0F * u,
+                        (optionH - 2.0F * u) * 0.3F, PhiTheme.level5());
+            } else if (this.optionHover.target == index * 64 + i) {
+                PhiRipple.drawReveal(nvg, x + inset, oy + 1.0F * u, w - inset * 2.0F, optionH - 2.0F * u,
+                        (optionH - 2.0F * u) * 0.3F, this.optionHover.enterX, this.optionHover.enterY,
+                        this.optionHover.progress, PhiTheme.level4());
+            }
+
+            int color = selected ? PhiTheme.textPrimary() : PhiTheme.textSecondary();
+            nvg.drawText(nvg.limitText(options[i], textSize, Fonts.REGULAR, w - 16.0F * u),
+                    x + 10.0F * u, oy + (optionH - textSize) * 0.5F, color, textSize, Fonts.REGULAR);
+        }
+    }
+
+    /**
+     * @param setting the slider setting.
+     * @return the normalized position of the value between 0 and 1.
+     */
+    private static float sliderRatio(PhiModuleSetting setting) {
+        float span = setting.getMax() - setting.getMin();
+
+        if (span <= 0.0F) {
+            return 0.0F;
+        }
+
+        return Math.max(0.0F, Math.min(1.0F, (setting.getFloat() - setting.getMin()) / span));
+    }
+
+    /**
+     * Formats a slider value: whole numbers without decimals, everything else with one decimal.
+     *
+     * @param value the value to format.
+     * @return the formatted value.
+     */
+    private static String formatValue(float value) {
+        float rounded = Math.round(value * 10.0F) / 10.0F;
+
+        if (rounded == (int) rounded) {
+            return String.valueOf((int) rounded);
+        }
+
+        return String.valueOf(rounded);
+    }
 
     /**
      * Tracks the hover state of one kind of interactive element, following the same rules as

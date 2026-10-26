@@ -217,20 +217,17 @@ public class GuiPhiHub extends GuiScreen {
         nvg.save();
         nvg.setGlobalAlpha(pageProgress);
 
-        // The page is clipped to the window: while it slides up, the elements at its bottom would
-        // otherwise stick out of the window. The scissor is set in the sheared coordinate system of
-        // the window, so the clip follows its slanted edges. The shear is undone afterwards, the
-        // scissor itself keeps the shape it was transformed into.
-        nvg.translate(hubX + offset, hubY);
-        nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        nvg.scissor(0.0F, 0.0F, hubWidth, hubHeight);
-        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
-        nvg.translate(-(hubX + offset), -hubY);
+        applyWindowScissor(nvg, hubX, hubY, hubWidth, hubHeight, offset);
 
         nvg.translate(0.0F, pageShift);
         this.currentCategory.draw(nvg, this.layout, mouseX, mouseY, partialTicks);
         nvg.restore();
         nvg.resetGlobalAlpha();
+
+        // A component may reset the scissor while drawing its own clipped areas - re-apply the
+        // window clip so the navigation band stays inside the window. The restore above already
+        // undid the page shift, so the scissor is anchored to the window again.
+        applyWindowScissor(nvg, hubX, hubY, hubWidth, hubHeight, offset);
 
         // Navigation band entries.
         this.navBar.draw(nvg, mouseX, mouseY, partialTicks);
@@ -281,6 +278,28 @@ public class GuiPhiHub extends GuiScreen {
         }
 
         nvg.restore();
+    }
+
+    /**
+     * Clips the following drawing to the slanted window shape of the hub. The scissor is set in the
+     * sheared coordinate system of the window, so the clip follows its slanted edges; the shear is
+     * undone afterwards while the scissor keeps the shape it was transformed into. Must be called
+     * whenever the current transform matches the hub window (no page shift applied).
+     *
+     * @param nvg       the NanoVG drawing context.
+     * @param hubX      the left edge of the hub window.
+     * @param hubY      the top edge of the hub window.
+     * @param hubWidth  the width of the hub window.
+     * @param hubHeight the height of the hub window.
+     * @param offset    the shear offset of the hub window.
+     */
+    private void applyWindowScissor(NanoVGManager nvg, float hubX, float hubY, float hubWidth,
+            float hubHeight, float offset) {
+        nvg.translate(hubX + offset, hubY);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        nvg.scissor(0.0F, 0.0F, hubWidth, hubHeight);
+        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
+        nvg.translate(-(hubX + offset), -hubY);
     }
 
     /**
