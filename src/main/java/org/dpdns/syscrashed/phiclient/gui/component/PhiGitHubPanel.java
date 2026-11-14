@@ -8,6 +8,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.lwjgl.Sys;
 
@@ -35,6 +36,9 @@ public class PhiGitHubPanel extends PhiComponent {
 
     private final float uiScale;
 
+    /** The sheen that sweeps horizontally while the panel is hovered. */
+    private final PhiSheen sheen = new PhiSheen();
+
     /**
      * @param x       the left x of the bounding box.
      * @param y       the top y of the bounding box.
@@ -51,11 +55,12 @@ public class PhiGitHubPanel extends PhiComponent {
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         updateHover(mouseX, mouseY);
-
-        int background = isHovered() ? PhiTheme.level4() : PhiTheme.level3();
+        this.sheen.update(isHovered());
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height,
-                PhiMetrics.CORNER_RADIUS * this.uiScale, background);
+                PhiMetrics.CORNER_RADIUS * this.uiScale, PhiTheme.level3());
+        this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height,
+                PhiMetrics.CORNER_RADIUS * this.uiScale, getHoverProgress(), PhiTheme.level4());
 
         float markSize = MARK_SIZE * this.uiScale;
         float labelSize = PhiMetrics.FONT_BODY * this.uiScale;
@@ -78,12 +83,17 @@ public class PhiGitHubPanel extends PhiComponent {
     }
 
     @Override
+    protected boolean isInside(float pointX, float pointY) {
+        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
+    }
+
+    @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton != 0) {
             return;
         }
 
-        if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
+        if (!isInside(mouseX, mouseY)) {
             return;
         }
 
