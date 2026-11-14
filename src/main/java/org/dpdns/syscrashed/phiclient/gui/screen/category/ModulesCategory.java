@@ -12,9 +12,7 @@ import org.lwjgl.nanovg.NanoVG;
  * The modules page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
  *
  * <p>The real module system is not implemented yet, so the page only shows a "Coming Soon" placeholder
- * in the middle of the content area. The previous placeholder module list ({@code PhiModulePanel} and
- * {@code PhiPlaceholderModules}) is no longer attached to the page; it is replaced by the real module
- * UI in a later stage.</p>
+ * in the middle of the content area. The real module UI replaces the placeholder in a later stage.</p>
  */
 public class ModulesCategory extends PhiCategory {
 
