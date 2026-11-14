@@ -1,31 +1,25 @@
 package org.dpdns.syscrashed.phiclient.gui.screen.category;
 
-import java.util.List;
-
-import org.dpdns.syscrashed.phiclient.gui.component.PhiModulePanel;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
-import org.dpdns.syscrashed.phiclient.gui.module.PhiModule;
-import org.dpdns.syscrashed.phiclient.gui.module.PhiPlaceholderModules;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
+import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
+import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
+import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.lwjgl.nanovg.NanoVG;
 
 /**
  * The modules page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
  *
- * <p>The page holds the module list of the client. Ten placeholder modules test the GUI for now: five
- * of them are plain switches, five of them additionally adjust their parameters in the "more settings"
- * panel, which is opened by the gear icon of their row - the same way the Soar client does it. The
- * real module system replaces the placeholders in a later stage.</p>
+ * <p>The real module system is not implemented yet, so the page only shows a "Coming Soon" placeholder
+ * in the middle of the content area. The previous placeholder module list ({@code PhiModulePanel} and
+ * {@code PhiPlaceholderModules}) is no longer attached to the page; it is replaced by the real module
+ * UI in a later stage.</p>
  */
 public class ModulesCategory extends PhiCategory {
 
-    /** The placeholder modules of the page. */
-    private final List<PhiModule> modules = PhiPlaceholderModules.create();
-
-    /** The module panel of the page; kept between layouts so the scroll and view states survive. */
-    private PhiModulePanel modulePanel;
-
-    /** The ui scale the panel was built with; a change rebuilds the panel. */
-    private float lastUiScale = -1.0F;
+    /** The placeholder that is shown until the real module system exists. */
+    private static final String COMING_SOON = "Coming Soon";
 
     /**
      * Creates the modules page.
@@ -35,28 +29,22 @@ public class ModulesCategory extends PhiCategory {
     }
 
     @Override
-    public void layout(PhiHubLayout layout) {
-        clearComponents();
-
+    public void draw(NanoVGManager nvg, PhiHubLayout layout, int mouseX, int mouseY, float partialTicks) {
+        // The placeholder sits in the middle of the content area. Its center is computed between the
+        // slanted left edge (navigation band) and the slanted right edge of the hub at the same height,
+        // so it always stays centered inside the parallelogram.
         float top = layout.getHubY() + layout.getPadding();
         float bottom = layout.getHubY() + layout.getHubHeight() - layout.getPadding();
-        float x = contentLeft(layout, bottom);
-        float width = contentRight(layout, bottom) - x;
-        float height = bottom - top;
+        float centerY = (top + bottom) * 0.5F;
 
-        // The panel is placed flush against the slanted edges of the hub, like the cards of the other
-        // pages: its left edge is parallel to the navigation band at the constant distance of the
-        // padding.
-        if (this.modulePanel == null || this.lastUiScale != layout.getUiScale()) {
-            this.modulePanel = new PhiModulePanel(x, top, width, height, layout.getUiScale(), this.modules);
-            this.lastUiScale = layout.getUiScale();
-        } else {
-            this.modulePanel.setX(x);
-            this.modulePanel.setY(top);
-            this.modulePanel.setWidth(width);
-            this.modulePanel.setHeight(height);
-        }
+        float left = contentLeft(layout, centerY);
+        float right = contentRight(layout, centerY);
+        float centerX = (left + right) * 0.5F;
 
-        this.components.add(this.modulePanel);
+        float size = PhiMetrics.FONT_NAME * layout.getUiScale();
+
+        nvg.drawTextAligned(COMING_SOON, centerX, centerY,
+                NanoVG.NVG_ALIGN_CENTER | NanoVG.NVG_ALIGN_MIDDLE,
+                PhiTheme.textSecondary(), size, Fonts.REGULAR);
     }
 }
