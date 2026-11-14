@@ -1,11 +1,14 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
 /**
- * A component that can be scrolled with the mouse wheel
+ * The scrollable text capability of a component
  * (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>Components that implement this interface receive the wheel events of the hub before the
- * navigation band does, so a list inside a page can be scrolled independently.</p>
+ * <p>Components that show a text list longer than their viewport implement this interface - it is
+ * the explicit counterpart of the non scrollable text. The page dispatches the wheel events through
+ * this interface before the navigation band receives them, so a list inside a page can be scrolled
+ * independently. The signature must stay in this package, because the dispatch relies on
+ * {@code instanceof PhiScrollable}.</p>
  *
  * <p>Provided methods:</p>
  * <ul>

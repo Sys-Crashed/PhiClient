@@ -1,7 +1,10 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
+import org.dpdns.syscrashed.phiclient.gui.component.capability.PhiHoverRipple;
+import org.dpdns.syscrashed.phiclient.gui.component.capability.PhiRippleHost;
+import org.dpdns.syscrashed.phiclient.gui.component.shape.PhiShape;
+import org.dpdns.syscrashed.phiclient.gui.component.shape.PhiSkewShape;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
-import org.dpdns.syscrashed.phiclient.utils.mouse.MouseUtils;
 
 /**
  * Base class for UI components (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
@@ -9,6 +12,12 @@ import org.dpdns.syscrashed.phiclient.utils.mouse.MouseUtils;
  * <p>A component owns its position and size, and is responsible for drawing itself and handling
  * mouse/keyboard interaction. Parents (categories / screens) only handle layout and event
  * dispatch.</p>
+ *
+ * <p>The component also owns its <b>shape family</b> (see {@link PhiShape}): the hit test of hover
+ * and click is decided by the shape, so a component can never be drawn as one shape and tested as
+ * another. The parallelogram is the default; the small icon buttons override it with the rounded
+ * square. The hover state machine is the unified {@link PhiHoverRipple} with the component
+ * observation {@code (120 ms in, 420 ms out, 0.12 min start, 0.2 restart)}.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -19,7 +28,7 @@ import org.dpdns.syscrashed.phiclient.utils.mouse.MouseUtils;
  *   <li>{@link #getX()} / {@link #setX(float)} and the {@code Y}/{@code Width}/{@code Height} equivalents - geometry accessors.</li>
  * </ul>
  */
-public abstract class PhiComponent {
+public abstract class PhiComponent implements PhiRippleHost {
 
     protected float x;
     protected float y;
@@ -28,16 +37,16 @@ public abstract class PhiComponent {
 
     private boolean hovered;
 
-    /** The duration of the hover ripple in milliseconds while it grows. */
+    /** The duration of the hover highlight in milliseconds while it grows. */
     private static final float RIPPLE_IN = 120.0F;
 
-    /** The duration of the hover ripple in milliseconds while it fades out. */
+    /** The duration of the hover highlight in milliseconds while it fades out. */
     private static final float RIPPLE_OUT = 420.0F;
 
-    /** The radius the ripple starts with, so that a quick movement over the component is visible. */
+    /** The progress the highlight starts with, so that a quick movement over the component is visible. */
     private static final float RIPPLE_MIN_START = 0.12F;
 
-    /** Below this progress the ripple restarts at the new position of the pointer. */
+    /** Below this progress the highlight restarts at the new position of the pointer. */
     private static final float RIPPLE_RESTART = 0.2F;
 
     /** How long the component grows when it is pressed. */
@@ -49,25 +58,35 @@ public abstract class PhiComponent {
     /** How much the component grows when it is pressed. */
     private static final float PRESS_AMOUNT = 0.06F;
 
-    /** The point where the pointer entered the component (the center of the hover ripple). */
-    private float hoverEnterX;
+    /** The shape family of the component: it decides the hit test and the base drawing. */
+    private final PhiShape shape;
 
-    private float hoverEnterY;
-
-    /** The progress of the hover ripple (1 = the component is completely highlighted). */
-    private float hoverProgress;
-
-    /** The time of the last frame in which the hover state was updated. */
-    private long hoverTime;
+    /** The unified hover state machine (tint progress and the point where the pointer entered). */
+    private final PhiHoverRipple ripple = new PhiHoverRipple(
+            RIPPLE_IN, RIPPLE_OUT, RIPPLE_MIN_START, RIPPLE_RESTART, true);
 
     /** The time of the last press (0 when there is none). */
     private long pressTime;
 
     public PhiComponent(float x, float y, float width, float height) {
+        this(x, y, width, height, PhiSkewShape.INSTANCE);
+    }
+
+    /**
+     * Creates a component with an explicit shape family.
+     *
+     * @param x      the left x of the bounding box.
+     * @param y      the top y of the bounding box.
+     * @param width  the width of the bounding box.
+     * @param height the height of the bounding box.
+     * @param shape  the shape family of the component.
+     */
+    protected PhiComponent(float x, float y, float width, float height, PhiShape shape) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
+        this.shape = shape;
     }
 
     /**
@@ -113,48 +132,27 @@ public abstract class PhiComponent {
     /**
      * Refreshes the hover state. Subclasses should call this at the start of {@link #draw}.
      *
-     * <p>The method also drives the hover ripple: the highlight expands from the point where the
+     * <p>The method also drives the hover highlight: the progress expands from the point where the
      * pointer entered the component and shrinks back to it when the pointer leaves.</p>
      *
      * @param mouseX the current pointer x.
      * @param mouseY the current pointer y.
      */
     protected void updateHover(int mouseX, int mouseY) {
-        long now = System.currentTimeMillis();
-        float deltaMs = this.hoverTime == 0L ? 16.0F : Math.min(100.0F, now - this.hoverTime);
-        this.hoverTime = now;
-
         boolean inside = isInside(mouseX, mouseY);
 
-        if (inside && !this.hovered) {
-            // The pointer entered the component. The ripple only restarts at the new position when it
-            // has almost faded out - otherwise a quick movement over the component makes it flicker.
-            if (this.hoverProgress < RIPPLE_RESTART) {
-                this.hoverEnterX = mouseX;
-                this.hoverEnterY = mouseY;
-
-                // The ripple does not start at a single point, so it is also visible when the pointer
-                // only passes over the component for a very short time.
-                this.hoverProgress = Math.max(this.hoverProgress, RIPPLE_MIN_START);
-            }
-        }
-
         this.hovered = inside;
-
-        // The ripple grows quickly and fades out slowly. That way it stays visible long enough to be
-        // seen, even when the pointer only touches the component for a moment.
-        float speed = inside ? deltaMs / RIPPLE_IN : -deltaMs / RIPPLE_OUT;
-        this.hoverProgress = Math.max(0.0F, Math.min(1.0F, this.hoverProgress + speed));
+        this.ripple.update(mouseX, mouseY, inside);
     }
 
     /**
      * @param pointX the point x.
      * @param pointY the point y.
-     * @return true if the point is inside the component. Components that are not axis aligned
-     *         rectangles override this method.
+     * @return true if the point is inside the component. The test follows the shape family of the
+     *         component - hover and click therefore always use the same rule.
      */
     protected boolean isInside(float pointX, float pointY) {
-        return MouseUtils.isInside(pointX, pointY, this.x, this.y, this.width, this.height);
+        return this.shape.contains(pointX, pointY, this.x, this.y, this.width, this.height);
     }
 
     /**
@@ -190,24 +188,24 @@ public abstract class PhiComponent {
     }
 
     /**
-     * @return the progress of the hover ripple in the range {@code [0, 1]}.
+     * @return the progress of the hover highlight in the range {@code [0, 1]}.
      */
     protected float getHoverProgress() {
-        return this.hoverProgress;
+        return this.ripple.getProgress();
     }
 
     /**
      * @return the x of the point where the pointer entered the component.
      */
     protected float getHoverEnterX() {
-        return this.hoverEnterX;
+        return this.ripple.getOriginX();
     }
 
     /**
      * @return the y of the point where the pointer entered the component.
      */
     protected float getHoverEnterY() {
-        return this.hoverEnterY;
+        return this.ripple.getOriginY();
     }
 
     /**
@@ -218,13 +216,25 @@ public abstract class PhiComponent {
     }
 
     /**
-     * Overwrites the hover state. Subclasses use this when the component is not an axis aligned
-     * rectangle and therefore needs its own hit test.
+     * Overwrites the hover state. Subclasses use this when the hover state is derived outside of
+     * {@link #updateHover(int, int)}.
      *
      * @param hovered the new hover state.
      */
     protected void setHovered(boolean hovered) {
         this.hovered = hovered;
+    }
+
+    @Override
+    public PhiHoverRipple getRipple() {
+        return this.ripple;
+    }
+
+    /**
+     * @return the shape family of the component.
+     */
+    protected PhiShape getShape() {
+        return this.shape;
     }
 
     /**
