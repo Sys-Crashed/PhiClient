@@ -178,20 +178,7 @@ public class HomeCategory extends PhiCategory {
         final PhiInteractiveControlBlock copyAddress = new PhiInteractiveControlBlock(firstRowLeft, firstRowTop,
                 firstBlockWidth, blockHeight, uiScale, PhiControlIcons.SIGNAL, PhiControlIcons.CHECK, false);
         copyAddress.setLabel("Copy IP");
-        copyAddress.setAction(new PhiControlBlock.Action() {
-            @Override
-            public void onClicked() {
-                String address = PhiGameInfo.getServerAddress();
-                boolean copied = PhiGameInfo.copy(address);
-
-                showToast("Address", copied ? address : "The clipboard is not available");
-
-                if (copied) {
-                    // The icon of the block turns into the check mark for a moment.
-                    copyAddress.triggerFeedback();
-                }
-            }
-        });
+        copyAddress.setAction(new CopyAddressAction(copyAddress));
 
         this.components.add(copyAddress);
 
@@ -200,19 +187,7 @@ public class HomeCategory extends PhiCategory {
                 firstRowLeft + (firstBlockWidth + blockGap), firstRowTop, firstBlockWidth,
                 blockHeight, uiScale, PhiControlIcons.CROSSHAIR, PhiControlIcons.CHECK, false);
         copyPosition.setLabel("Copy Coord");
-        copyPosition.setAction(new PhiControlBlock.Action() {
-            @Override
-            public void onClicked() {
-                String position = PhiGameInfo.getCoordinates();
-                boolean copied = PhiGameInfo.copy(position);
-
-                showToast("Position", copied ? position : "The clipboard is not available");
-
-                if (copied) {
-                    copyPosition.triggerFeedback();
-                }
-            }
-        });
+        copyPosition.setAction(new CopyPositionAction(copyPosition));
 
         this.components.add(copyPosition);
 
@@ -223,14 +198,7 @@ public class HomeCategory extends PhiCategory {
                 firstRowTop, firstBlockWidth, blockHeight, uiScale,
                 PhiControlIcons.SUN, PhiControlIcons.MOON, true);
         theme.setLabel("Theme");
-        theme.setAction(new PhiControlBlock.Action() {
-            @Override
-            public void onClicked() {
-                PhiTheme.setActive(PhiTheme.isLight() ? PhiTheme.DARK : PhiTheme.LIGHT);
-
-                showToast("Theme", PhiTheme.isLight() ? "Light" : "Dark");
-            }
-        });
+        theme.setAction(new ThemeAction());
 
         this.components.add(theme);
 
@@ -243,36 +211,21 @@ public class HomeCategory extends PhiCategory {
 
         PhiReadonlyControlBlock time = new PhiReadonlyControlBlock(secondRowLeft, secondRowTop,
                 secondBlockWidth, blockHeight, uiScale, PhiControlIcons.CLOCK);
-        time.setValueProvider(new PhiControlBlock.ValueProvider() {
-            @Override
-            public String getValue() {
-                return PhiGameInfo.getTime();
-            }
-        });
+        time.setValueProvider(new TimeValueProvider());
 
         this.components.add(time);
 
         PhiReadonlyControlBlock weather = new PhiReadonlyControlBlock(
                 secondRowLeft + (secondBlockWidth + blockGap), secondRowTop, secondBlockWidth,
                 blockHeight, uiScale, PhiControlIcons.WEATHER);
-        weather.setValueProvider(new PhiControlBlock.ValueProvider() {
-            @Override
-            public String getValue() {
-                return PhiGameInfo.getWeather();
-            }
-        });
+        weather.setValueProvider(new WeatherValueProvider());
 
         this.components.add(weather);
 
         PhiReadonlyControlBlock dimension = new PhiReadonlyControlBlock(
                 secondRowLeft + (secondBlockWidth + blockGap) * 2.0F, secondRowTop, secondBlockWidth,
                 blockHeight, uiScale, PhiControlIcons.GLOBE);
-        dimension.setValueProvider(new PhiControlBlock.ValueProvider() {
-            @Override
-            public String getValue() {
-                return PhiGameInfo.getDimension();
-            }
-        });
+        dimension.setValueProvider(new DimensionValueProvider());
 
         this.components.add(dimension);
     }
@@ -287,5 +240,88 @@ public class HomeCategory extends PhiCategory {
         PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
 
         toast.show(title, message);
+    }
+
+    /** Copies the address of the server and turns the icon of the block into the check mark. */
+    private final class CopyAddressAction implements PhiControlBlock.Action {
+
+        private final PhiInteractiveControlBlock block;
+
+        CopyAddressAction(PhiInteractiveControlBlock block) {
+            this.block = block;
+        }
+
+        @Override
+        public void onClicked() {
+            String address = PhiGameInfo.getServerAddress();
+            boolean copied = PhiGameInfo.copy(address);
+
+            showToast("Address", copied ? address : "The clipboard is not available");
+
+            if (copied) {
+                // The icon of the block turns into the check mark for a moment.
+                this.block.triggerFeedback();
+            }
+        }
+    }
+
+    /** Copies the position of the player and turns the icon of the block into the check mark. */
+    private final class CopyPositionAction implements PhiControlBlock.Action {
+
+        private final PhiInteractiveControlBlock block;
+
+        CopyPositionAction(PhiInteractiveControlBlock block) {
+            this.block = block;
+        }
+
+        @Override
+        public void onClicked() {
+            String position = PhiGameInfo.getCoordinates();
+            boolean copied = PhiGameInfo.copy(position);
+
+            showToast("Position", copied ? position : "The clipboard is not available");
+
+            if (copied) {
+                this.block.triggerFeedback();
+            }
+        }
+    }
+
+    /** Switches between the light and the dark theme. */
+    private final class ThemeAction implements PhiControlBlock.Action {
+
+        @Override
+        public void onClicked() {
+            PhiTheme.setActive(PhiTheme.isLight() ? PhiTheme.DARK : PhiTheme.LIGHT);
+
+            showToast("Theme", PhiTheme.isLight() ? "Light" : "Dark");
+        }
+    }
+
+    /** Provides the time of the game world. */
+    private static final class TimeValueProvider implements PhiControlBlock.ValueProvider {
+
+        @Override
+        public String getValue() {
+            return PhiGameInfo.getTime();
+        }
+    }
+
+    /** Provides the weather of the game world. */
+    private static final class WeatherValueProvider implements PhiControlBlock.ValueProvider {
+
+        @Override
+        public String getValue() {
+            return PhiGameInfo.getWeather();
+        }
+    }
+
+    /** Provides the dimension of the game world. */
+    private static final class DimensionValueProvider implements PhiControlBlock.ValueProvider {
+
+        @Override
+        public String getValue() {
+            return PhiGameInfo.getDimension();
+        }
     }
 }
