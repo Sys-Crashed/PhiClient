@@ -1,6 +1,5 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
-import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 
@@ -108,26 +107,13 @@ public class PhiToggle extends PhiComponent {
         nvg.drawSkewRect(knobX, this.y + inset, knobSize, knobSize, knobSize * 0.3F, knob);
     }
 
-    /**
-     * The switch is a parallelogram, so the pointer has to be tested against the shape and not against
-     * its bounding box.
-     *
-     * @param pointX the point x.
-     * @param pointY the point y.
-     * @return true if the point is inside the switch.
-     */
-    @Override
-    protected boolean isInside(float pointX, float pointY) {
-        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
-    }
-
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         if (mouseButton != 0) {
             return;
         }
 
-        if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
+        if (!isInside(mouseX, mouseY)) {
             return;
         }
 

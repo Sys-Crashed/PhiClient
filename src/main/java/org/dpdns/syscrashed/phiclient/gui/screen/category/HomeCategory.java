@@ -4,8 +4,10 @@ import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiChangeLogPanel;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiControlBlock;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiGitHubPanel;
+import org.dpdns.syscrashed.phiclient.gui.component.PhiInteractiveControlBlock;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiMusicControl;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiPlayerCard;
+import org.dpdns.syscrashed.phiclient.gui.component.PhiReadonlyControlBlock;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiTipCard;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiControlIcons;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
@@ -173,8 +175,8 @@ public class HomeCategory extends PhiCategory {
         float firstBlockWidth = (firstRowRight - firstRowLeft - blockGap * 2.0F) / 3.0F;
 
         // Copy the address of the server.
-        final PhiControlBlock copyAddress = new PhiControlBlock(firstRowLeft, firstRowTop, firstBlockWidth,
-                blockHeight, uiScale, PhiControlIcons.SIGNAL, PhiControlIcons.CHECK, true, false);
+        final PhiInteractiveControlBlock copyAddress = new PhiInteractiveControlBlock(firstRowLeft, firstRowTop,
+                firstBlockWidth, blockHeight, uiScale, PhiControlIcons.SIGNAL, PhiControlIcons.CHECK, false);
         copyAddress.setLabel("Copy IP");
         copyAddress.setAction(new PhiControlBlock.Action() {
             @Override
@@ -194,9 +196,9 @@ public class HomeCategory extends PhiCategory {
         this.components.add(copyAddress);
 
         // Copy the position of the player.
-        final PhiControlBlock copyPosition = new PhiControlBlock(
+        final PhiInteractiveControlBlock copyPosition = new PhiInteractiveControlBlock(
                 firstRowLeft + (firstBlockWidth + blockGap), firstRowTop, firstBlockWidth,
-                blockHeight, uiScale, PhiControlIcons.CROSSHAIR, PhiControlIcons.CHECK, true, false);
+                blockHeight, uiScale, PhiControlIcons.CROSSHAIR, PhiControlIcons.CHECK, false);
         copyPosition.setLabel("Copy Coord");
         copyPosition.setAction(new PhiControlBlock.Action() {
             @Override
@@ -216,9 +218,10 @@ public class HomeCategory extends PhiCategory {
 
         // Switch the theme. The icon of the block follows the palette on its own: the sun in the
         // light theme, the moon in the dark one.
-        PhiControlBlock theme = new PhiControlBlock(firstRowLeft + (firstBlockWidth + blockGap) * 2.0F,
+        PhiInteractiveControlBlock theme = new PhiInteractiveControlBlock(
+                firstRowLeft + (firstBlockWidth + blockGap) * 2.0F,
                 firstRowTop, firstBlockWidth, blockHeight, uiScale,
-                PhiControlIcons.SUN, PhiControlIcons.MOON, true, true);
+                PhiControlIcons.SUN, PhiControlIcons.MOON, true);
         theme.setLabel("Theme");
         theme.setAction(new PhiControlBlock.Action() {
             @Override
@@ -238,8 +241,8 @@ public class HomeCategory extends PhiCategory {
         float secondRowRight = columnRightX + PhiSkew.SLOPE * (contentBottom - secondRowBottom);
         float secondBlockWidth = (secondRowRight - secondRowLeft - blockGap * 2.0F) / 3.0F;
 
-        PhiControlBlock time = new PhiControlBlock(secondRowLeft, secondRowTop, secondBlockWidth,
-                blockHeight, uiScale, PhiControlIcons.CLOCK, null, false, false);
+        PhiReadonlyControlBlock time = new PhiReadonlyControlBlock(secondRowLeft, secondRowTop,
+                secondBlockWidth, blockHeight, uiScale, PhiControlIcons.CLOCK);
         time.setValueProvider(new PhiControlBlock.ValueProvider() {
             @Override
             public String getValue() {
@@ -249,9 +252,9 @@ public class HomeCategory extends PhiCategory {
 
         this.components.add(time);
 
-        PhiControlBlock weather = new PhiControlBlock(
+        PhiReadonlyControlBlock weather = new PhiReadonlyControlBlock(
                 secondRowLeft + (secondBlockWidth + blockGap), secondRowTop, secondBlockWidth,
-                blockHeight, uiScale, PhiControlIcons.WEATHER, null, false, false);
+                blockHeight, uiScale, PhiControlIcons.WEATHER);
         weather.setValueProvider(new PhiControlBlock.ValueProvider() {
             @Override
             public String getValue() {
@@ -261,9 +264,9 @@ public class HomeCategory extends PhiCategory {
 
         this.components.add(weather);
 
-        PhiControlBlock dimension = new PhiControlBlock(
+        PhiReadonlyControlBlock dimension = new PhiReadonlyControlBlock(
                 secondRowLeft + (secondBlockWidth + blockGap) * 2.0F, secondRowTop, secondBlockWidth,
-                blockHeight, uiScale, PhiControlIcons.GLOBE, null, false, false);
+                blockHeight, uiScale, PhiControlIcons.GLOBE);
         dimension.setValueProvider(new PhiControlBlock.ValueProvider() {
             @Override
             public String getValue() {

@@ -1,9 +1,8 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
+import org.dpdns.syscrashed.phiclient.gui.component.text.PhiTypewriterText;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
@@ -22,47 +21,18 @@ import org.lwjgl.nanovg.NanoVG;
  * player that the card can be clicked.</p>
  *
  * <p>The card owns exactly one content column (see {@link PhiCard}), so the headline, the text of the
- * tip and the hint all share the same two x positions and cannot drift apart.</p>
- *
- * <p>Provided methods:</p>
- * <ul>
- *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the card.</li>
- * </ul>
+ * tip and the hint all share the same two x positions and cannot drift apart. The written-out text is
+ * delegated to {@link PhiTypewriterText}; hover and click share the same shape rule of the card.</p>
  */
 public class PhiTipCard extends PhiComponent {
-
-    /** The time the tip needs to be written out completely. */
-    private static final float REVEAL_DURATION = 1000.0F;
 
     /** The hint that tells the player that the card can be clicked. */
     private static final String HINT = "Click to switch tip";
 
     private final float uiScale;
 
-    private final List<String> tips = PhiTips.getTips();
-
-    /** The random source that picks the next tip. */
-    private final Random random = new Random();
-
-    /** The wrapped lines of the tip that is currently shown. */
-    private final List<String> tipLines = new ArrayList<String>();
-
-    /** The index of the last character of every wrapped line inside the tip. */
-    private final List<Integer> tipLineEnds = new ArrayList<Integer>();
-
-    /** The tip the wrapped lines belong to. */
-    private int wrappedIndex = -1;
-
-    /** The width the wrapped lines were built for. */
-    private float wrappedWidth = -1.0F;
-
-    private int index;
-
-    /** The number of characters that are currently visible. */
-    private float revealed;
-
-    /** The number of characters that are written per second. */
-    private float charactersPerSecond;
+    /** The text of the card, written out character by character and switched at random. */
+    private final PhiTypewriterText typewriter = new PhiTypewriterText(PhiTips.getTips());
 
     private long lastFrame;
 
@@ -82,22 +52,15 @@ public class PhiTipCard extends PhiComponent {
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        updateHover(mouseX, mouseY);
+
         long now = System.currentTimeMillis();
         float deltaMs = Math.min(100.0F, now - this.lastFrame);
         this.lastFrame = now;
 
-        String tip = this.tips.get(this.index);
+        this.typewriter.advance(deltaMs);
 
-        // The tip is always written out completely after one second.
-        if (this.charactersPerSecond <= 0.0F) {
-            this.charactersPerSecond = tip.length() * 1000.0F / REVEAL_DURATION;
-        }
-
-        this.revealed += deltaMs * this.charactersPerSecond / 1000.0F;
-
-        if (this.revealed > tip.length()) {
-            this.revealed = tip.length();
-        }
+        String tip = this.typewriter.getText();
 
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
         float padding = PhiMetrics.CARD_PADDING * this.uiScale;
@@ -129,16 +92,17 @@ public class PhiTipCard extends PhiComponent {
         float tipY = titleY + titleSize * 1.5F;
         int maxLines = Math.max(1, (int) ((hintY - bodySize * 0.6F - tipY) / lineHeight));
 
-        wrapTip(nvg, contentWidth, bodySize);
+        this.typewriter.wrap(nvg, contentWidth, bodySize);
 
-        int revealedChars = (int) this.revealed;
+        int revealedChars = this.typewriter.getRevealedChars();
+        List<String> tipLines = this.typewriter.getLines();
         float cursorX = -1.0F;
         float cursorY = tipY;
 
-        for (int line = 0; line < this.tipLines.size() && line < maxLines; line++) {
-            String text = this.tipLines.get(line);
-            int lineStart = line == 0 ? 0 : this.tipLineEnds.get(line - 1) + 1;
-            int lineEnd = this.tipLineEnds.get(line);
+        for (int line = 0; line < tipLines.size() && line < maxLines; line++) {
+            String text = tipLines.get(line);
+            int lineStart = this.typewriter.getLineStart(line);
+            int lineEnd = this.typewriter.getLineEnd(line);
 
             if (revealedChars <= lineStart) {
                 break;
@@ -169,82 +133,16 @@ public class PhiTipCard extends PhiComponent {
             return;
         }
 
-        if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
+        if (!isInside(mouseX, mouseY)) {
             return;
         }
 
-        String tip = this.tips.get(this.index);
-
-        if (this.revealed < tip.length()) {
+        if (!this.typewriter.isComplete()) {
             // The first click completes the text.
-            this.revealed = tip.length();
+            this.typewriter.complete();
             return;
         }
 
-        // The next tip is picked at random - the list never runs through in the same order twice.
-        int next = this.index;
-
-        while (next == this.index && this.tips.size() > 1) {
-            next = this.random.nextInt(this.tips.size());
-        }
-
-        this.index = next;
-        this.revealed = 0.0F;
-        this.charactersPerSecond = 0.0F;
-    }
-
-    /**
-     * Wraps the tip that is currently shown into lines that fit into the content column. The result is
-     * cached, so the lines do not jump while the tip is written out.
-     *
-     * @param nvg      the NanoVG drawing context.
-     * @param width    the width of the content column.
-     * @param bodySize the font size of the tip.
-     */
-    private void wrapTip(NanoVGManager nvg, float width, float bodySize) {
-        if (this.wrappedIndex == this.index && this.wrappedWidth == width) {
-            return;
-        }
-
-        this.wrappedIndex = this.index;
-        this.wrappedWidth = width;
-        this.tipLines.clear();
-        this.tipLineEnds.clear();
-
-        String tip = this.tips.get(this.index);
-        int position = 0;
-        int lineStart = 0;
-        StringBuilder line = new StringBuilder();
-
-        while (position < tip.length()) {
-            int wordEnd = tip.indexOf(' ', position);
-
-            if (wordEnd < 0) {
-                wordEnd = tip.length();
-            }
-
-            String word = tip.substring(position, wordEnd);
-            String candidate = line.length() == 0 ? word : line + " " + word;
-
-            if (nvg.textWidth(candidate, bodySize, Fonts.REGULAR) > width && line.length() > 0) {
-                this.tipLines.add(line.toString());
-                this.tipLineEnds.add(lineStart + line.length());
-
-                lineStart = position;
-                line = new StringBuilder(word);
-            } else if (line.length() == 0) {
-                // A single word that is longer than the column is shortened.
-                line = new StringBuilder(nvg.limitText(word, bodySize, Fonts.REGULAR, width));
-            } else {
-                line = new StringBuilder(candidate);
-            }
-
-            position = wordEnd + 1;
-        }
-
-        if (line.length() > 0) {
-            this.tipLines.add(line.toString());
-            this.tipLineEnds.add(lineStart + line.length());
-        }
+        this.typewriter.switchText();
     }
 }

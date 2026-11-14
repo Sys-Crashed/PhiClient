@@ -1,5 +1,6 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
+import org.dpdns.syscrashed.phiclient.gui.component.text.PhiStaticText;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
@@ -26,9 +27,10 @@ import org.lwjgl.nanovg.NanoVG;
  */
 public class PhiCard extends PhiComponent {
 
-    private final String title;
-    private final String description;
-    private final String status;
+    /** The headline, the secondary line and the status - each a static text of its column. */
+    private final PhiStaticText title = new PhiStaticText();
+    private final PhiStaticText description = new PhiStaticText();
+    private final PhiStaticText status = new PhiStaticText();
 
     private final float uiScale;
 
@@ -49,9 +51,9 @@ public class PhiCard extends PhiComponent {
         super(x, y, width, height);
 
         this.uiScale = uiScale;
-        this.title = title;
-        this.description = description;
-        this.status = status;
+        this.title.setContent(title);
+        this.description.setContent(description);
+        this.status.setContent(status);
     }
 
     /**
@@ -66,8 +68,8 @@ public class PhiCard extends PhiComponent {
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
-        // The card is a parallelogram, so it needs its own hit test instead of the rectangular one.
-        setHovered(PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height));
+        // Hover and click share the shape rule of the card (the parallelogram).
+        setHovered(isInside(mouseX, mouseY));
 
         int background = isHovered() ? PhiTheme.level4() : PhiTheme.level3();
         nvg.drawSkewRect(this.x, this.y, this.width, this.height,
@@ -83,13 +85,15 @@ public class PhiCard extends PhiComponent {
         float contentWidth = contentRight - contentLeft;
 
         float titleY = this.y + padding * 0.85F;
-        String headline = nvg.limitText(this.title, titleSize, Fonts.REGULAR, contentWidth);
+        String headline = this.title.getLimited(nvg, titleSize, Fonts.REGULAR, contentWidth);
 
         nvg.drawText(headline, contentLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
-        if (this.description != null && !this.description.isEmpty()) {
+        String descriptionText = this.description.getContent();
+
+        if (descriptionText != null && !descriptionText.isEmpty()) {
             float descriptionY = titleY + titleSize * 1.35F;
-            String text = nvg.limitText(this.description, bodySize, Fonts.REGULAR, contentWidth);
+            String text = this.description.getLimited(nvg, bodySize, Fonts.REGULAR, contentWidth);
 
             nvg.drawText(text, contentLeft, descriptionY, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
         }
@@ -99,13 +103,15 @@ public class PhiCard extends PhiComponent {
             return;
         }
 
-        if (this.status != null && !this.status.isEmpty()) {
+        String statusText = this.status.getContent();
+
+        if (statusText != null && !statusText.isEmpty()) {
             // The status shares the row of the headline, so it must not run into it.
             float headlineWidth = nvg.textWidth(headline, titleSize, Fonts.REGULAR);
             float statusWidth = contentWidth - headlineWidth - padding * 0.8F;
 
             if (statusWidth > bodySize) {
-                String text = nvg.limitText(this.status, bodySize, Fonts.REGULAR, statusWidth);
+                String text = this.status.getLimited(nvg, bodySize, Fonts.REGULAR, statusWidth);
 
                 nvg.drawTextAligned(text, contentRight, titleY,
                         NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP, PhiTheme.accent(), bodySize, Fonts.REGULAR);

@@ -2,6 +2,7 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 
 import java.net.URI;
 
+import org.dpdns.syscrashed.phiclient.gui.component.text.PhiStaticText;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
@@ -39,6 +40,9 @@ public class PhiGitHubPanel extends PhiComponent {
     /** The sheen that sweeps horizontally while the panel is hovered. */
     private final PhiSheen sheen = new PhiSheen();
 
+    /** The word under the mark (a static text, shortened to the width of the panel). */
+    private final PhiStaticText label = new PhiStaticText();
+
     /**
      * @param x       the left x of the bounding box.
      * @param y       the top y of the bounding box.
@@ -50,6 +54,7 @@ public class PhiGitHubPanel extends PhiComponent {
         super(x, y, width, height);
 
         this.uiScale = uiScale;
+        this.label.setContent("Repository");
     }
 
     @Override
@@ -78,13 +83,8 @@ public class PhiGitHubPanel extends PhiComponent {
         float labelY = markCenterY + markSize * 0.5F + gap;
         float maxWidth = Math.max(0.0F, this.width - PhiMetrics.CARD_PADDING * this.uiScale * 2.0F);
 
-        nvg.drawTextCentered(nvg.limitText("Repository", labelSize, Fonts.REGULAR, maxWidth),
+        nvg.drawTextCentered(this.label.getLimited(nvg, labelSize, Fonts.REGULAR, maxWidth),
                 centerX, labelY, PhiTheme.textSecondary(), labelSize, Fonts.REGULAR);
-    }
-
-    @Override
-    protected boolean isInside(float pointX, float pointY) {
-        return PhiSkew.contains(pointX, pointY, this.x, this.y, this.width, this.height);
     }
 
     @Override

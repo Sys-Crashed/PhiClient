@@ -5,12 +5,12 @@ import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.gui.changelog.PhiChangeLog;
 import org.dpdns.syscrashed.phiclient.gui.changelog.PhiChangeLogManager;
+import org.dpdns.syscrashed.phiclient.gui.component.text.PhiScrollableTextPanel;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
-import org.dpdns.syscrashed.phiclient.gui.widget.PhiScrollState;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -19,26 +19,16 @@ import org.lwjgl.nanovg.NanoVG;
  *
  * <p>The panel shows the recent changes of the client: every entry has a badge with its type and a
  * description that is wrapped over several lines when it does not fit into one line. When the entries
- * do not fit into the panel, the list can be scrolled with the mouse wheel.</p>
+ * do not fit into the panel, the list can be scrolled with the mouse wheel - the scroll ability and
+ * its diagonal movement live in the base class {@link PhiScrollableTextPanel}.</p>
  *
  * <p><b>Layout rule</b>: the entries follow the slanted left edge of the panel - every entry owns
  * <b>one</b> anchor on that diagonal. The badge is placed on the anchor and the description starts
  * right behind it, so the distance between the badge and its text is always the same. Every further
  * line of a description is shifted to the left by the same slope the interface uses everywhere, so the
  * wrapped text stays parallel to the edge of the panel and never runs into the right border.</p>
- *
- * <p><b>Scrolling</b>: the list does not move straight down, it moves along the diagonal of the
- * panel. One pixel up shifts the entries by the same distance to the right as the slant of the
- * interface, so every entry stays on the line of the slanted left edge - no matter how far the list
- * was scrolled. The entries are clipped to the panel, so nothing can reach the other column.</p>
- *
- * <p>Provided methods:</p>
- * <ul>
- *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the panel.</li>
- *   <li>{@link #onWheel(float, int, int)} - scrolls the list.</li>
- * </ul>
  */
-public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
+public class PhiChangeLogPanel extends PhiScrollableTextPanel {
 
     /** The minimum width of a type badge. */
     private static final float BADGE_MIN_WIDTH = 46.0F;
@@ -52,16 +42,7 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
     /** The vertical distance between two entries. */
     private static final float ENTRY_SPACING = 14.0F;
 
-    /** The scroll distance of a single wheel notch. */
-    private static final float SCROLL_PER_NOTCH = 30.0F;
-
-    private final float uiScale;
-
     private final List<PhiChangeLog> changeLogs = PhiChangeLogManager.getInstance().getChangeLogs();
-
-    private final PhiScrollState scrollState = new PhiScrollState();
-
-    private long lastFrame;
 
     /**
      * @param x       the left x of the bounding box.
@@ -71,17 +52,12 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
      * @param uiScale the design scale factor of the interface.
      */
     public PhiChangeLogPanel(float x, float y, float width, float height, float uiScale) {
-        super(x, y, width, height);
-
-        this.uiScale = uiScale;
-        this.lastFrame = System.currentTimeMillis();
+        super(x, y, width, height, uiScale);
     }
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
-        long now = System.currentTimeMillis();
-        float deltaMs = Math.min(100.0F, now - this.lastFrame);
-        this.lastFrame = now;
+        float deltaMs = advanceFrame();
 
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
         float padding = PhiMetrics.CARD_PADDING * this.uiScale;
@@ -154,16 +130,16 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         }
 
         float viewportHeight = this.y + this.height - listTop - padding * 0.5F;
-        this.scrollState.setContentSize(contentHeight, viewportHeight);
-        this.scrollState.update(deltaMs);
+        getScrollState().setContentSize(contentHeight, viewportHeight);
+        getScrollState().update(deltaMs);
 
-        float offset = this.scrollState.getOffset();
+        float offset = getScrollState().getOffset();
 
         // The list does not scroll straight down, it scrolls along the diagonal of the panel: one
         // pixel up moves the entries the same distance to the right as the slant of the interface.
         // Every entry therefore stays on the same line as the slanted left edge of the panel and
         // never drifts away from it while the list is scrolled.
-        float slide = PhiSkew.SLOPE * offset;
+        float slide = getSkewSlide();
 
         // The list is clipped to the area below the divider, so an entry that is scrolled out of the
         // list cannot reach the headline of the panel - and it cannot reach the blocks of the other
@@ -225,55 +201,5 @@ public class PhiChangeLogPanel extends PhiComponent implements PhiScrollable {
         }
 
         nvg.restore();
-    }
-
-    @Override
-    public boolean onWheel(float notches, int mouseX, int mouseY) {
-        if (!PhiSkew.contains(mouseX, mouseY, this.x, this.y, this.width, this.height)) {
-            return false;
-        }
-
-        this.scrollState.scrollBy(notches * SCROLL_PER_NOTCH * this.uiScale);
-        return true;
-    }
-
-    /**
-     * Splits a text into lines that fit into the given width.
-     *
-     * @param nvg   the NanoVG drawing context.
-     * @param text  the text to split.
-     * @param size  the font size.
-     * @param width the width of a line.
-     * @return the lines of the text.
-     */
-    private List<String> wrap(NanoVGManager nvg, String text, float size, float width) {
-        List<String> result = new ArrayList<String>();
-
-        if (text == null || text.isEmpty()) {
-            return result;
-        }
-
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-
-        for (String word : words) {
-            String candidate = line.length() == 0 ? word : line + " " + word;
-
-            if (nvg.textWidth(candidate, size, Fonts.REGULAR) > width && line.length() > 0) {
-                result.add(line.toString());
-                line = new StringBuilder(word);
-            } else if (line.length() == 0) {
-                // A single word that is longer than the column is shortened.
-                line = new StringBuilder(nvg.limitText(word, size, Fonts.REGULAR, width));
-            } else {
-                line = new StringBuilder(candidate);
-            }
-        }
-
-        if (line.length() > 0) {
-            result.add(line.toString());
-        }
-
-        return result;
     }
 }

@@ -1,8 +1,8 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
+import org.dpdns.syscrashed.phiclient.gui.component.shape.PhiRoundedSquareShape;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
-import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 
@@ -10,9 +10,10 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * A button that shows a single vector icon (package
  * {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>The button is an upright rectangle: the buttons of the music area stand next to each other and a
- * row of leaning buttons would not look even. It has no outline: the background level expresses the
- * hover state, the icon color the enabled state.</p>
+ * <p>The button is the only component with the {@link PhiRoundedSquareShape} shape family: an upright
+ * rounded rectangle, because the buttons of the music area stand next to each other and a row of
+ * leaning buttons would not look even. It has no outline: the background level expresses the hover
+ * state, the icon color the enabled state. Hover and click share the same axis aligned hit test.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -48,7 +49,7 @@ public class PhiIconButton extends PhiComponent {
      * @param icon    the icon of the button.
      */
     public PhiIconButton(float x, float y, float width, float height, float uiScale, PhiIcon icon) {
-        super(x, y, width, height);
+        super(x, y, width, height, PhiRoundedSquareShape.INSTANCE);
 
         this.uiScale = uiScale;
         this.icon = icon;
