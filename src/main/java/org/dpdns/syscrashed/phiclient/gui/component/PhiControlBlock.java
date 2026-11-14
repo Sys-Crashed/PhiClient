@@ -6,7 +6,8 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
-import org.dpdns.syscrashed.phiclient.gui.util.PhiRipple;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiIconFeedback;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
 
 /**
  * A control block of the home page (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
@@ -20,8 +21,10 @@ import org.dpdns.syscrashed.phiclient.gui.util.PhiRipple;
  *
  * <p><b>Feedback</b>: every block owns two icons. The first one is the icon of the state, the second
  * one the icon of the feedback (a check mark after a successful copy, the moon of the dark theme).
- * Both icons are mixed with an exponential smoothing, so the change is soft and never snaps. A block
- * whose icon follows the theme swaps between the sun and the moon by itself.</p>
+ * The transition uses the Cupertino replace preset: the resting icon moves out, the feedback icon
+ * enters with a damped spring and a draw-on stroke, then the resting icon springs back. A block
+ * whose icon follows the theme rotates between the sun and the moon. The hover feedback is a sheen
+ * that sweeps along the slanted axis of the block.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -51,22 +54,13 @@ public class PhiControlBlock extends PhiComponent {
         String getValue();
     }
 
-    /** How long the feedback icon stays visible after a click. */
-    private static final long FEEDBACK_MS = 1100L;
-
-    /** Time constant of the icon mix (milliseconds). */
-    private static final float BLEND_MS = 240.0F;
-
-    /** How much the icon of the feedback grows while it comes in. */
-    private static final float FEEDBACK_GROW = 0.22F;
-
     private final float uiScale;
 
-    /** The icon of the resting state. */
-    private final PhiIcon icon;
+    /** The replace transition of the resting icon and the feedback icon. */
+    private final PhiIconFeedback iconFeedback;
 
-    /** The icon of the feedback (null when the block has only one icon). */
-    private final PhiIcon feedbackIcon;
+    /** The sheen that sweeps along the slanted axis while the block is hovered. */
+    private final PhiSheen sheen = new PhiSheen();
 
     /** Whether the block reacts to the pointer. */
     private final boolean interactive;
@@ -79,17 +73,6 @@ public class PhiControlBlock extends PhiComponent {
     private Action action;
 
     private ValueProvider valueProvider;
-
-    /** The moment the feedback icon disappears again. */
-    private long feedbackEnd;
-
-    /** The current mix of the two icons (0 = the first icon, 1 = the second one). */
-    private float blend;
-
-    /** The mix the block is heading for. */
-    private float blendTarget;
-
-    private long lastFrame;
 
     /**
      * @param x           the left x of the bounding box.
@@ -107,11 +90,9 @@ public class PhiControlBlock extends PhiComponent {
         super(x, y, width, height);
 
         this.uiScale = uiScale;
-        this.icon = icon;
-        this.feedbackIcon = feedbackIcon;
+        this.iconFeedback = new PhiIconFeedback(icon, feedbackIcon, themeIcon);
         this.interactive = interactive;
         this.themeIcon = themeIcon;
-        this.lastFrame = System.currentTimeMillis();
     }
 
     /**
@@ -153,17 +134,14 @@ public class PhiControlBlock extends PhiComponent {
      * Shows the feedback icon for a moment.
      */
     public void triggerFeedback() {
-        this.feedbackEnd = System.currentTimeMillis() + FEEDBACK_MS;
+        this.iconFeedback.trigger();
     }
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
-        long now = System.currentTimeMillis();
-        float deltaMs = Math.min(100.0F, now - this.lastFrame);
-        this.lastFrame = now;
-
         if (this.interactive) {
             updateHover(mouseX, mouseY);
+            this.sheen.update(isHovered());
         }
 
         // The block shows the value of the game when it has a provider for it.
@@ -173,35 +151,15 @@ public class PhiControlBlock extends PhiComponent {
 
         // The icon of the theme block follows the palette, the other blocks show their feedback.
         if (this.themeIcon) {
-            this.blendTarget = PhiTheme.isLight() ? 0.0F : 1.0F;
-        } else {
-            this.blendTarget = now < this.feedbackEnd ? 1.0F : 0.0F;
+            this.iconFeedback.setStateTarget(PhiTheme.isLight() ? 0.0F : 1.0F);
         }
 
-        // The two icons are mixed with an exponential smoothing - the change is soft.
-        float factor = 1.0F - (float) Math.exp(-deltaMs / BLEND_MS);
-
-        this.blend += (this.blendTarget - this.blend) * Math.min(1.0F, factor);
-
-        if (this.blend < 0.001F) {
-            this.blend = 0.0F;
-        } else if (this.blend > 0.999F) {
-            this.blend = 1.0F;
-        }
-
-        // The background of the block. The hover state is not a second background, it is the reveal
-        // that spreads from the pointer.
         nvg.drawSkewRect(this.x, this.y, this.width, this.height,
                 PhiMetrics.CORNER_RADIUS * this.uiScale, PhiTheme.level3());
 
         if (this.interactive) {
-            float progress = getHoverProgress();
-
-            if (progress > 0.001F) {
-                PhiRipple.drawReveal(nvg, this.x, this.y, this.width, this.height,
-                        PhiMetrics.CORNER_RADIUS * this.uiScale,
-                        getHoverEnterX(), getHoverEnterY(), progress, PhiTheme.level4());
-            }
+            this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height,
+                    PhiMetrics.CORNER_RADIUS * this.uiScale, getHoverProgress(), PhiTheme.level4());
         }
 
         float padding = PhiMetrics.CONTROL_BLOCK_PADDING * this.uiScale;
@@ -226,13 +184,7 @@ public class PhiControlBlock extends PhiComponent {
 
         int iconColor = this.interactive && isHovered() ? PhiTheme.accent() : PhiTheme.textPrimary();
 
-        drawIcon(nvg, this.icon, centerX, iconCenterY, iconSize, 1.0F - this.blend, iconColor);
-
-        if (this.feedbackIcon != null) {
-            drawIcon(nvg, this.feedbackIcon, centerX, iconCenterY,
-                    iconSize * (1.0F - FEEDBACK_GROW + FEEDBACK_GROW * this.blend),
-                    this.blend, iconColor);
-        }
+        this.iconFeedback.draw(nvg, centerX, iconCenterY, iconSize, iconColor);
 
         float labelY = iconCenterY + iconSize * 0.5F + iconGap;
         float maxWidth = Math.max(0.0F, this.width - padding * 2.0F);
@@ -242,28 +194,6 @@ public class PhiControlBlock extends PhiComponent {
                 centerX, labelY, labelColor, labelSize, Fonts.REGULAR);
 
         nvg.restore();
-    }
-
-    /**
-     * Draws one of the two icons with its own opacity.
-     *
-     * @param nvg      the NanoVG drawing context.
-     * @param icon     the icon (may be null).
-     * @param centerX  the horizontal center of the icon.
-     * @param centerY  the vertical center of the icon.
-     * @param size     the edge length of the icon.
-     * @param alpha    the opacity of the icon.
-     * @param color    the color of the icon.
-     */
-    private void drawIcon(NanoVGManager nvg, PhiIcon icon, float centerX, float centerY,
-                          float size, float alpha, int color) {
-        if (icon == null || alpha <= 0.001F) {
-            return;
-        }
-
-        nvg.setGlobalAlpha(alpha);
-        icon.draw(nvg, centerX, centerY, size, color);
-        nvg.resetGlobalAlpha();
     }
 
     @Override

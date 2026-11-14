@@ -9,7 +9,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.PhiCategory;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
-import org.dpdns.syscrashed.phiclient.gui.util.PhiRipple;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
 import org.dpdns.syscrashed.phiclient.gui.widget.PhiTooltip;
 
 /**
@@ -85,12 +85,11 @@ public class PhiNavBar {
     /** Progress of the hover reveal of the active entry (0 = no hover, 1 = fully hovered). */
     private float hoverAmount;
 
-    /** The point the hover reveal of the active entry spreads from. */
-    private float hoverOriginX;
-    private float hoverOriginY;
-
     /** The entry the hover reveal belongs to (it stays there while the reveal fades out). */
     private int revealIndex = -1;
+
+    /** The sheen of the entry the pointer entered most recently. */
+    private final PhiSheen sheen = new PhiSheen();
 
     private int hoverIndexPrev = -1;
 
@@ -180,8 +179,7 @@ public class PhiNavBar {
             if (this.hoverIndexPrev != this.hoveredIndex) {
                 // The pointer entered another entry: the reveal spreads from the new position.
                 this.revealIndex = this.hoveredIndex;
-                this.hoverOriginX = mouseX;
-                this.hoverOriginY = mouseY;
+                this.sheen.restart();
 
                 // The reveal does not start at a single point, it already covers a small area when
                 // the pointer only passes over the entry for a moment.
@@ -247,15 +245,14 @@ public class PhiNavBar {
             int base = isSelected ? PhiTheme.level5() : PhiTheme.level3();
             nvg.drawSkewRect(this.itemLeftXs[i], top, width, this.itemHeight, radius, base);
 
-            // The hover color spreads from the pointer position outward. A press flashes the accent.
-            // The reveal of an entry is still drawn while it fades out, so the pointer leaving the
-            // entry does not make the highlight disappear at once.
+            // A sheen sweeps along the slanted axis, then a faint tint marks the hover. A press
+            // flashes the accent. The entry keeps its feedback while the tint fades out.
             if (i == this.revealIndex && this.hoverAmount > 0.001F) {
                 int revealColor = (i == this.pressedIndex)
                         ? PhiTheme.accent()
                         : (isSelected ? PhiTheme.mix(PhiTheme.level5(), PhiTheme.accent(), 0.45F) : PhiTheme.level4());
-                PhiRipple.drawReveal(nvg, this.itemLeftXs[i], top, width, this.itemHeight, radius,
-                        this.hoverOriginX, this.hoverOriginY, this.hoverAmount, revealColor);
+                this.sheen.drawSkew(nvg, this.itemLeftXs[i], top, width, this.itemHeight, radius,
+                        this.hoverAmount, revealColor);
             }
 
             int iconColor = isSelected ? PhiTheme.accent() : (isHovered ? PhiTheme.textPrimary() : PhiTheme.textSecondary());

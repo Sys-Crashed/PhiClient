@@ -23,8 +23,8 @@ public final class PhiControlIcons {
     /** The icon of the copy block of the position (a crosshair). */
     public static final PhiIcon CROSSHAIR = new PhiSvgIcon("/assets/phiclient/images/crosshair.svg");
 
-    /** The icon that confirms a successful copy. */
-    public static final PhiIcon CHECK = new PhiSvgIcon("/assets/phiclient/images/check.svg");
+    /** The icon that confirms a successful copy (a vector path, so the feedback can draw it on). */
+    public static final PhiIcon CHECK = new PhiCheckIcon();
 
     /** The icon of the theme block in the light theme. */
     public static final PhiIcon SUN = new PhiSvgIcon("/assets/phiclient/images/sun.svg");

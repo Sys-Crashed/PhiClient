@@ -281,6 +281,11 @@ public final class NanoVGManager {
         NanoVG.nvgSkewX(this.context, (float) Math.toRadians(degrees));
     }
 
+    /** Rotates the current NanoVG coordinate system around its origin. */
+    public void rotate(float degrees) {
+        NanoVG.nvgRotate(this.context, (float) Math.toRadians(degrees));
+    }
+
     /** Sets a scissor rectangle (clips subsequent drawing). */
     public void scissor(float x, float y, float width, float height) {
         NanoVG.nvgScissor(this.context, x, y, width, height);
