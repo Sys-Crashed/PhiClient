@@ -70,6 +70,15 @@ public final class PhiMetrics {
     /** Number of song rows one mouse wheel notch scrolls (a fixed, predictable step). */
     public static final float WHEEL_ROWS_PER_NOTCH = 2.0F;
 
+    /** Side length of the checkbox of a track row in the playlist dialog. */
+    public static final float PLAYLIST_CHECK_SIZE = 16.0F;
+
+    /** Side length of the close icon of the playlist dialog. */
+    public static final float PLAYLIST_CLOSE_SIZE = 12.0F;
+
+    /** Side length of the delete icon of a track row in the manage playlist dialog. */
+    public static final float PLAYLIST_REMOVE_SIZE = 16.0F;
+
     /** Height of a tooltip box. */
     public static final float TOOLTIP_HEIGHT = 34.0F;
 

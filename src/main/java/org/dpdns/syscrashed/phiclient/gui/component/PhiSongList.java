@@ -111,16 +111,17 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
         nvg.translate(this.x, this.y);
         nvg.skewX(PhiSkew.SHEAR_DEGREES);
         // A scissor rectangle is axis aligned, so under the shear its bounding box loses
-        // SLOPE * height on the slanted sides. The cards lean to the right by SLOPE * rowHeight,
-        // so the clip is extended by that amount on the right - otherwise the rounded top right
-        // corner of a card would be cut off by the straight edge of the clip. The left side already
-        // reaches far enough (the shear shifts the clip to the left).
-        nvg.scissor(0.0F, 0.0F, this.width + PhiSkew.SLOPE * this.rowHeight + 1.0F, this.height);
+        // SLOPE * height on the slanted sides. A row is inscribed into the band: its bottom left
+        // corner keeps the padding to the left edge of the hub and its top right corner the padding
+        // to the right edge. The row therefore leans SLOPE * rowHeight further to the right on the
+        // top and further to the left on the bottom, so the clip starts that much before the band
+        // and ends that much after it - otherwise a row would be cut off on the slanted sides.
+        nvg.scissor(-PhiSkew.offset(this.rowHeight) - 1.0F, 0.0F,
+                this.width + PhiSkew.offset(this.rowHeight) * 2.0F + 2.0F, this.height);
         nvg.skewX(-PhiSkew.SHEAR_DEGREES);
         nvg.translate(-this.x, -this.y);
 
         float stride = this.rowHeight + this.rowGap;
-        float slide = PhiSkew.SLOPE * this.scroll;
         for (int i = 0; i < this.cards.size(); i++) {
             float rowY = this.y + i * stride - this.scroll;
             PhiSongCard card = this.cards.get(i);
@@ -128,9 +129,12 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
                 card.clearHover();
                 continue; // outside the viewport
             }
-            // The x anchor is measured at the un-scrolled row position and slides along the diagonal
-            // with the scroll offset, so a card always stays flush against the slanted left edge.
-            float rowX = this.x + PhiSkew.SLOPE * (this.scroll - i * stride);
+            // The row is inscribed into the slanted band of the hub: the bottom left corner keeps
+            // the padding to the left edge, the top right corner the padding to the right edge. The
+            // anchor is measured at the un-scrolled row position and slides along the diagonal with
+            // the scroll offset, so a row always stays flush against the slanted left edge.
+            float rowX = this.x + PhiSkew.SLOPE * (this.scroll - i * stride)
+                    - PhiSkew.offset(this.rowHeight);
             // Only the visible part of the row can be reached by the pointer.
             card.setVisibleBounds(Math.max(rowY, this.y),
                     Math.min(rowY + this.rowHeight, this.y + this.height));

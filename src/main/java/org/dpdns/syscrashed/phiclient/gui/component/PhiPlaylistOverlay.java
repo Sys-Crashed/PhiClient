@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiTrack;
@@ -113,8 +114,8 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     private String selectedPlaylistName = "";
 
     // Geometry of the last frame (the hit tests reuse it).
-    private float contentLeft;
-    private float contentRight;
+    /** The inset of the dialog: every element keeps this distance to the slanted edges. */
+    private float padding;
     private float listTop;
     private float listBottom;
     private float rowHeight;
@@ -308,21 +309,18 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.lastFrame = now;
 
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
-        float padding = 16.0F * this.uiScale;
+        this.padding = 16.0F * this.uiScale;
+        float padding = this.padding;
         float titleSize = PhiMetrics.FONT_TITLE * this.uiScale;
         float bodySize = PhiMetrics.FONT_BODY * this.uiScale;
         float buttonHeight = 26.0F * this.uiScale;
         float fieldHeight = 26.0F * this.uiScale;
         float buttonRadius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
 
-        this.contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
-        this.contentRight = PhiSkew.contentRight(this.x, this.width, padding);
-        float contentWidth = Math.max(20.0F, this.contentRight - this.contentLeft);
-
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level2());
 
         // Title row: the title on the left, the close icon pinned to the slanted right edge.
-        this.closeSize = titleSize;
+        this.closeSize = PhiMetrics.PLAYLIST_CLOSE_SIZE * this.uiScale;
         this.closeY = this.y + padding * 0.8F;
         this.closeX = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height,
                 this.closeY + this.closeSize * 0.5F) - padding * 0.8F - this.closeSize;
@@ -334,26 +332,33 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                 PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), this.closeHover));
 
         String title = PhiI18n.get(modeTitleKey());
+        // The title shares the slanted left line of the dialog: its left end keeps the inset to
+        // the edge of the dialog at the height of the text.
+        float titleLeft = edgeLeft(this.closeY + titleSize);
         float titleRight = this.closeX - padding * 0.5F;
-        nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR, Math.max(0.0F, titleRight - this.contentLeft)),
-                this.contentLeft, this.closeY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+        nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR, Math.max(0.0F, titleRight - titleLeft)),
+                titleLeft, this.closeY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
-        // Name field (CREATE) and the rename field (MANAGE). MANAGE reserves the width of the rename
-        // button on the right of the field.
+        // Name field (CREATE) and the rename field (MANAGE). The field is inscribed into the
+        // slanted band of the dialog like the rows below it, so its right end is on the same
+        // slanted line as theirs and both have the same length. MANAGE reserves the width of the
+        // rename button on the right of the field.
         float fieldY = this.y + padding * 0.8F + titleSize + padding * 0.7F;
-        float fieldWidth = contentWidth;
+        float fieldBottom = fieldY + fieldHeight;
+        float fieldX = edgeLeft(fieldBottom);
+        float fieldWidth = Math.max(20.0F, edgeRight(fieldBottom) - fieldX);
         if (this.mode == Mode.MANAGE) {
             String renameLabel = PhiI18n.get("music.playlist.rename");
             this.renameWidth = nvg.textWidth(renameLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
                     + PhiSkew.offset(buttonHeight);
             this.renameHeight = buttonHeight;
             this.renameY = fieldY;
-            this.renameX = this.contentRight - this.renameWidth;
-            fieldWidth = Math.max(20.0F, this.renameX - padding * 0.5F - this.contentLeft);
+            this.renameX = edgeRight(fieldBottom) - this.renameWidth;
+            fieldWidth = Math.max(20.0F, this.renameX - padding * 0.5F - fieldX);
         }
 
         if (this.mode == Mode.CREATE || this.mode == Mode.MANAGE) {
-            this.nameField.setX(this.contentLeft);
+            this.nameField.setX(fieldX);
             this.nameField.setY(fieldY);
             this.nameField.setWidth(fieldWidth);
             this.nameField.setHeight(fieldHeight);
@@ -372,6 +377,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.cancelWidth = 0.0F;
         this.deleteWidth = 0.0F;
         float buttonY = this.y + this.height - padding * 0.8F - buttonHeight;
+        float buttonBottom = buttonY + buttonHeight;
 
         if (this.mode == Mode.CREATE || this.mode == Mode.ADD) {
             this.confirmHeight = buttonHeight;
@@ -384,7 +390,9 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                     + PhiSkew.offset(buttonHeight);
             this.cancelWidth = nvg.textWidth(cancelLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
                     + PhiSkew.offset(buttonHeight);
-            this.confirmX = this.contentRight - this.confirmWidth;
+            // The buttons sit on the slanted right line of the dialog, so their right end keeps the
+            // same inset to the border as the rows above them.
+            this.confirmX = edgeRight(buttonBottom) - this.confirmWidth;
             this.cancelX = this.confirmX - this.cancelWidth - padding * 0.5F;
         } else if (this.mode == Mode.MANAGE) {
             this.deleteHeight = buttonHeight;
@@ -392,7 +400,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
             String deleteLabel = PhiI18n.get("music.playlist.delete");
             this.deleteWidth = nvg.textWidth(deleteLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
                     + PhiSkew.offset(buttonHeight);
-            this.deleteX = this.contentRight - this.deleteWidth;
+            this.deleteX = edgeRight(buttonBottom) - this.deleteWidth;
         }
 
         this.listBottom = buttonY - padding * 0.6F;
@@ -403,20 +411,18 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.scrollState.update(deltaMs);
 
         float offset = this.scrollState.getOffset();
-        float slide = PhiSkew.SLOPE * offset;
 
         // The rows follow the slanted left edge and scroll along the diagonal, like the change log.
-        nvg.save();
-        nvg.translate(this.x, this.y);
-        nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        // A row leans to the right by SLOPE * rowHeight, but a scissor rectangle is axis aligned:
-        // the clip is extended by that amount so the rounded right corners of a row survive.
+        // A scissor rectangle is axis aligned, so the slanted band is clipped by its bounding box:
+        // a row leans to the right on the top and to the left on the bottom, so the box has to
+        // reach SLOPE * rowHeight beyond the band on the slanted sides.
         float rowWidth = this.width - padding * 2.0F;
-        nvg.scissor(this.contentLeft - this.x, this.listTop - this.y,
-                rowWidth + PhiSkew.SLOPE * this.rowHeight + 1.0F,
+        float clipLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, this.listBottom) + padding - 1.0F;
+        float clipRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, this.listTop)
+                + PhiSkew.offset(this.rowHeight) - padding + 1.0F;
+        nvg.save();
+        nvg.scissor(clipLeft, this.listTop, clipRight - clipLeft,
                 Math.max(0.0F, this.listBottom - this.listTop));
-        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
-        nvg.translate(-this.x, -this.y);
 
         if (this.rows.isEmpty()) {
             String empty = PhiI18n.get(this.mode == Mode.ADD ? "music.playlist.empty"
@@ -430,9 +436,13 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                 if (rowY + this.rowHeight < this.listTop || rowY > this.listBottom) {
                     continue;
                 }
+                // The row is inscribed into the slanted band of the dialog: its bottom left corner
+                // keeps the inset to the left edge and its top right corner the inset to the right
+                // edge, so the right end is no closer to the border than the left end. The anchor
+                // follows the scrolled row, so the rows travel along the diagonal.
                 float anchorX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
-                        this.listTop + i * rowStride) + padding;
-                drawRow(nvg, this.rows.get(i), anchorX + slide, rowY, bodySize, mouseX, mouseY, deltaMs);
+                        rowY + this.rowHeight) + padding;
+                drawRow(nvg, this.rows.get(i), anchorX, rowY, bodySize, mouseX, mouseY, deltaMs);
             }
         }
 
@@ -459,6 +469,22 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                     this.deleteHover, this.deleteSheen, false,
                     PhiTheme.textSecondary(), PhiTheme.danger());
         }
+    }
+
+    /**
+     * @return the x of the left slanted edge of the dialog at the given y, plus the inset. Every
+     *         element of the dialog uses this line as its left boundary, so all of them share one
+     *         slanted baseline.
+     */
+    private float edgeLeft(float pointY) {
+        return PhiSkew.leftEdgeAt(this.x, this.y, this.height, pointY) + this.padding;
+    }
+
+    /**
+     * @return the x of the right slanted edge of the dialog at the given y, minus the inset.
+     */
+    private float edgeRight(float pointY) {
+        return PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, pointY) - this.padding;
     }
 
     /**
@@ -506,26 +532,31 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         float textLeft = PhiSkew.leftEdgeAt(rowX, rowY, this.rowHeight, textY) + padding * 0.6F;
 
         if (this.mode == Mode.CREATE) {
-            float checkSize = this.rowHeight * 0.5F;
+            float checkSize = PhiMetrics.PLAYLIST_CHECK_SIZE * this.uiScale;
             float checkY = rowY + (this.rowHeight - checkSize) * 0.5F;
             float checkX = PhiSkew.leftEdgeAt(rowX, rowY, this.rowHeight, checkY) + padding * 0.6F;
             drawCheckbox(nvg, checkX, checkY, checkSize, row.checked, textColor);
             float checkRight = checkX + checkSize;
+            // The text ends before the slanted right edge of the row, not before its lower corner.
+            float textRight = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight, textY)
+                    - padding * 0.6F;
             nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
-                            Math.max(0.0F, rowX + rowWidth - (checkRight + padding * 0.6F))),
+                            Math.max(0.0F, textRight - (checkRight + padding * 0.6F))),
                     checkRight + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
             return;
         }
 
         if (this.mode == Mode.MANAGE) {
-            float removeSize = this.rowHeight * 0.5F;
-            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
-                    rowY + this.rowHeight * 0.5F) - padding * 0.8F - removeSize * 0.5F;
+            float removeSize = PhiMetrics.PLAYLIST_REMOVE_SIZE * this.uiScale;
             float centerY = rowY + this.rowHeight * 0.5F;
+            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
+                    centerY) - padding * 0.8F - removeSize * 0.5F;
             boolean removeHovered = insideBox(mouseX, mouseY,
                     removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F, removeSize);
             row.removeHover = approach(row.removeHover, removeHovered, deltaMs);
-            drawCross(nvg, removeCenterX, centerY, removeSize * 0.42F,
+            // A trash can instead of a cross: it is the same icon the song rows of the library use.
+            PhiIcons.DELETE.draw(nvg, removeCenterX, centerY,
+                    removeSize * (1.0F + 0.10F * row.removeHover),
                     PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), row.removeHover));
             float textRight = removeCenterX - removeSize * 0.5F - padding * 0.6F;
             nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
@@ -535,8 +566,10 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         }
 
         // ADD: a plain selectable row.
+        float addTextRight = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight, textY)
+                - padding * 0.6F;
         nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
-                        Math.max(0.0F, rowWidth - padding * 1.2F)),
+                        Math.max(0.0F, addTextRight - textLeft)),
                 textLeft, textY, textColor, bodySize, Fonts.REGULAR);
     }
 
@@ -674,18 +707,17 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
             return;
         }
         if (this.mode == Mode.MANAGE) {
-            // The remove icon at the right end of the row.
+            // The remove icon at the right end of the row - the same geometry the row is drawn with.
             float padding = 16.0F * this.uiScale;
             float rowStride = this.rowHeight + this.rowGap;
-            float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
-                    this.listTop + index * rowStride) + padding
-                    + PhiSkew.SLOPE * this.scrollState.getOffset();
             float rowY = this.listTop + index * rowStride - this.scrollState.getOffset();
+            float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowY + this.rowHeight)
+                    + padding;
             float rowWidth = this.width - padding * 2.0F;
-            float removeSize = this.rowHeight * 0.5F;
-            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
-                    rowY + this.rowHeight * 0.5F) - padding * 0.8F - removeSize * 0.5F;
+            float removeSize = PhiMetrics.PLAYLIST_REMOVE_SIZE * this.uiScale;
             float centerY = rowY + this.rowHeight * 0.5F;
+            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
+                    centerY) - padding * 0.8F - removeSize * 0.5F;
             if (insideBox(mouseX, mouseY, removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F,
                     removeSize)) {
                 this.listener.onRemoveFromPlaylist(this.playlistName, row.trackId);
