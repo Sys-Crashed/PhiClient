@@ -214,14 +214,16 @@ public class MusicCategory extends PhiCategory {
         this.barWidth = contentRight(layout, contentBottom) - this.barX;
 
         // Song list: one upright content rectangle. The left x is measured at the TOP of the list
-        // (the largest left edge), the right x at the BOTTOM (the smallest right edge), so the
-        // rectangle stays inside the hub at every height and the cards never drift sideways.
+        // (the largest left edge), the right x at the TOP as well - both slanted edges are parallel,
+        // so the distance between them is the same at every height. Measuring the right edge at the
+        // bottom of the viewport instead would cut the rectangle short by SLOPE * listHeight and
+        // push every row away from the right edge of the hub (the rows would no longer line up).
         float listTop = tabBottom + 12.0F * s;
         float listHeight = Math.max(40.0F * s, this.barY - 12.0F * s - listTop);
         float listX = contentLeft(layout, listTop);
-        float listRight = contentRight(layout, listTop + listHeight);
+        float listRight = contentRight(layout, listTop);
         this.songList = new PhiSongList(listX, listTop, listRight - listX, listHeight,
-                PhiSongCard.ROW_HEIGHT * s, 8.0F * s);
+                PhiMetrics.SONG_ROW_HEIGHT * s, PhiMetrics.SONG_ROW_SPACING * s);
         this.components.add(this.songList);
 
         buildControlBar(layout);

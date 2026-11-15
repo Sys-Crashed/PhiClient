@@ -61,6 +61,12 @@ public final class PhiMetrics {
     /** Vertical gap between two content cards. */
     public static final float CARD_SPACING = 12.0F;
 
+    /** Height of one song row of the music page (shared by the library list and the playlist dialog). */
+    public static final float SONG_ROW_HEIGHT = 56.0F;
+
+    /** Vertical gap between two song rows of the music page. */
+    public static final float SONG_ROW_SPACING = 8.0F;
+
     /** Height of a tooltip box. */
     public static final float TOOLTIP_HEIGHT = 34.0F;
 

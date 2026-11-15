@@ -108,7 +108,12 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
         nvg.save();
         nvg.translate(this.x, this.y);
         nvg.skewX(PhiSkew.SHEAR_DEGREES);
-        nvg.scissor(0.0F, 0.0F, this.width, this.height);
+        // A scissor rectangle is axis aligned, so under the shear its bounding box loses
+        // SLOPE * height on the slanted sides. The cards lean to the right by SLOPE * rowHeight,
+        // so the clip is extended by that amount on the right - otherwise the rounded top right
+        // corner of a card would be cut off by the straight edge of the clip. The left side already
+        // reaches far enough (the shear shifts the clip to the left).
+        nvg.scissor(0.0F, 0.0F, this.width + PhiSkew.SLOPE * this.rowHeight + 1.0F, this.height);
         nvg.skewX(-PhiSkew.SHEAR_DEGREES);
         nvg.translate(-this.x, -this.y);
 

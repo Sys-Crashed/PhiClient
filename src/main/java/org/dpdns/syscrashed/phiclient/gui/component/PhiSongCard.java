@@ -52,7 +52,7 @@ public class PhiSongCard extends PhiComponent {
     }
 
     /** The height of one song row in design pixels. */
-    public static final float ROW_HEIGHT = 56.0F;
+    public static final float ROW_HEIGHT = PhiMetrics.SONG_ROW_HEIGHT;
 
     private final PhiTrack track;
 

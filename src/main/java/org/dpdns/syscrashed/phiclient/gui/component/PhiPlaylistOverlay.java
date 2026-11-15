@@ -118,6 +118,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     private float listTop;
     private float listBottom;
     private float rowHeight;
+    private float rowGap;
 
     private float closeX;
     private float closeY;
@@ -290,7 +291,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        this.scrollState.scrollBy(notches * this.rowHeight);
+        this.scrollState.scrollBy(notches * (this.rowHeight + this.rowGap));
         return true;
     }
 
@@ -318,7 +319,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.closeSize = titleSize;
         this.closeY = this.y + padding * 0.8F;
         this.closeX = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height,
-                this.closeY + this.closeSize * 0.5F) - padding * 0.25F - this.closeSize;
+                this.closeY + this.closeSize * 0.5F) - padding * 0.8F - this.closeSize;
 
         boolean closeHovered = insideBox(mouseX, mouseY, this.closeX, this.closeY, this.closeSize);
         this.closeHover = approach(this.closeHover, closeHovered, deltaMs);
@@ -353,8 +354,10 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
             this.nameField.draw(nvg, mouseX, mouseY, partialTicks);
         }
 
-        // The row list, clipped to the panel.
-        this.rowHeight = 28.0F * this.uiScale;
+        // The row list, clipped to the panel. The rows use the same metrics as the library list of
+        // the music page, so both lists share one relaxed rhythm.
+        this.rowHeight = PhiMetrics.SONG_ROW_HEIGHT * this.uiScale;
+        this.rowGap = PhiMetrics.SONG_ROW_SPACING * this.uiScale;
         this.listTop = fieldY + (this.mode == Mode.CREATE || this.mode == Mode.MANAGE
                 ? fieldHeight + padding * 0.6F : padding * 0.4F);
 
@@ -388,7 +391,8 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
         this.listBottom = buttonY - padding * 0.6F;
 
-        this.scrollState.setContentSize(this.rows.size() * this.rowHeight,
+        float rowStride = this.rowHeight + this.rowGap;
+        this.scrollState.setContentSize(Math.max(0.0F, this.rows.size() * rowStride - this.rowGap),
                 Math.max(0.0F, this.listBottom - this.listTop));
         this.scrollState.update(deltaMs);
 
@@ -399,8 +403,12 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         nvg.save();
         nvg.translate(this.x, this.y);
         nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        // A row leans to the right by SLOPE * rowHeight, but a scissor rectangle is axis aligned:
+        // the clip is extended by that amount so the rounded right corners of a row survive.
+        float rowWidth = this.width - padding * 2.0F;
         nvg.scissor(this.contentLeft - this.x, this.listTop - this.y,
-                this.contentRight - this.contentLeft, Math.max(0.0F, this.listBottom - this.listTop));
+                rowWidth + PhiSkew.SLOPE * this.rowHeight + 1.0F,
+                Math.max(0.0F, this.listBottom - this.listTop));
         nvg.skewX(-PhiSkew.SHEAR_DEGREES);
         nvg.translate(-this.x, -this.y);
 
@@ -411,12 +419,12 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                     PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
         } else {
             for (int i = 0; i < this.rows.size(); i++) {
-                float rowY = this.listTop + i * this.rowHeight - offset;
+                float rowY = this.listTop + i * rowStride - offset;
                 if (rowY + this.rowHeight < this.listTop || rowY > this.listBottom) {
                     continue;
                 }
                 float anchorX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
-                        this.listTop + i * this.rowHeight) + padding;
+                        this.listTop + i * rowStride) + padding;
                 drawRow(nvg, this.rows.get(i), anchorX + slide, rowY, bodySize, mouseX, mouseY, deltaMs);
             }
         }
@@ -467,7 +475,10 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     private void drawRow(NanoVGManager nvg, Row row, float rowX, float rowY, float bodySize,
                          int mouseX, int mouseY, float deltaMs) {
         float padding = 16.0F * this.uiScale;
-        float rowWidth = this.contentRight - this.contentLeft;
+        // The row spans the dialog between its two slanted edges: the width is the width of the
+        // dialog minus the two insets, so the right end keeps the same distance to the right edge
+        // as the left end keeps to the left edge - at every row and at every scroll position.
+        float rowWidth = this.width - padding * 2.0F;
         float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
 
         boolean selected = this.mode == Mode.ADD && row.playlistName.equals(this.selectedPlaylistName);
@@ -484,37 +495,42 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         int textColor = selected ? PhiTheme.accent()
                 : PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), row.hoverAmount);
         float textY = rowY + (this.rowHeight - bodySize) * 0.5F;
+        // Every element of the row follows the slanted edges of the row, so nothing can leave it.
+        float textLeft = PhiSkew.leftEdgeAt(rowX, rowY, this.rowHeight, textY) + padding * 0.6F;
 
         if (this.mode == Mode.CREATE) {
             float checkSize = this.rowHeight * 0.5F;
-            float checkX = rowX + padding * 0.4F;
             float checkY = rowY + (this.rowHeight - checkSize) * 0.5F;
+            float checkX = PhiSkew.leftEdgeAt(rowX, rowY, this.rowHeight, checkY) + padding * 0.6F;
             drawCheckbox(nvg, checkX, checkY, checkSize, row.checked, textColor);
+            float checkRight = checkX + checkSize;
             nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
-                            Math.max(0.0F, rowX + rowWidth - (checkX + checkSize + padding * 0.6F))),
-                    checkX + checkSize + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
+                            Math.max(0.0F, rowX + rowWidth - (checkRight + padding * 0.6F))),
+                    checkRight + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
             return;
         }
 
         if (this.mode == Mode.MANAGE) {
             float removeSize = this.rowHeight * 0.5F;
-            float removeCenterX = rowX + rowWidth - padding * 0.4F - removeSize * 0.5F;
+            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
+                    rowY + this.rowHeight * 0.5F) - padding * 0.8F - removeSize * 0.5F;
             float centerY = rowY + this.rowHeight * 0.5F;
             boolean removeHovered = insideBox(mouseX, mouseY,
                     removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F, removeSize);
             row.removeHover = approach(row.removeHover, removeHovered, deltaMs);
             drawCross(nvg, removeCenterX, centerY, removeSize * 0.42F,
                     PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), row.removeHover));
+            float textRight = removeCenterX - removeSize * 0.5F - padding * 0.6F;
             nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
-                            Math.max(0.0F, rowX + rowWidth - padding * 0.4F - removeSize - padding * 0.6F - rowX)),
-                    rowX + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
+                            Math.max(0.0F, textRight - textLeft)),
+                    textLeft, textY, textColor, bodySize, Fonts.REGULAR);
             return;
         }
 
         // ADD: a plain selectable row.
         nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
                         Math.max(0.0F, rowWidth - padding * 1.2F)),
-                rowX + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
+                textLeft, textY, textColor, bodySize, Fonts.REGULAR);
     }
 
     /**
@@ -635,7 +651,8 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (mouseY < this.listTop || mouseY > this.listBottom) {
             return;
         }
-        int index = (int) ((mouseY - this.listTop + this.scrollState.getOffset()) / this.rowHeight);
+        int index = (int) ((mouseY - this.listTop + this.scrollState.getOffset())
+                / (this.rowHeight + this.rowGap));
         if (index < 0 || index >= this.rows.size()) {
             return;
         }
@@ -652,13 +669,15 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (this.mode == Mode.MANAGE) {
             // The remove icon at the right end of the row.
             float padding = 16.0F * this.uiScale;
+            float rowStride = this.rowHeight + this.rowGap;
             float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
-                    this.listTop + index * this.rowHeight) + padding
+                    this.listTop + index * rowStride) + padding
                     + PhiSkew.SLOPE * this.scrollState.getOffset();
-            float rowY = this.listTop + index * this.rowHeight - this.scrollState.getOffset();
-            float rowWidth = this.contentRight - this.contentLeft;
+            float rowY = this.listTop + index * rowStride - this.scrollState.getOffset();
+            float rowWidth = this.width - padding * 2.0F;
             float removeSize = this.rowHeight * 0.5F;
-            float removeCenterX = rowX + rowWidth - padding * 0.4F - removeSize * 0.5F;
+            float removeCenterX = PhiSkew.rightEdgeAt(rowX, rowWidth, rowY, this.rowHeight,
+                    rowY + this.rowHeight * 0.5F) - padding * 0.8F - removeSize * 0.5F;
             float centerY = rowY + this.rowHeight * 0.5F;
             if (insideBox(mouseX, mouseY, removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F,
                     removeSize)) {
