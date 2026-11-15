@@ -16,6 +16,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.utils.PhiGameInfo;
 
 import net.minecraft.client.Minecraft;
@@ -45,9 +46,6 @@ import net.minecraft.client.Minecraft;
  * </ul>
  */
 public class HomeCategory extends PhiCategory {
-
-    /** The welcome text next to the name of the player. */
-    private static final String WELCOME = "Welcome to PhiClient";
 
     /** The gap between two blocks. */
     private static final float GAP = 10.0F;
@@ -110,7 +108,7 @@ public class HomeCategory extends PhiCategory {
         PhiPlayerCard playerCard = new PhiPlayerCard(playerX, playerTop, playerRight - playerX, playerHeight,
                 uiScale);
         playerCard.setPlayerName(getPlayerName());
-        playerCard.setWelcome(WELCOME);
+        playerCard.setWelcome(PhiI18n.get("home.player.welcome"));
 
         this.components.add(playerCard);
 
@@ -143,7 +141,7 @@ public class HomeCategory extends PhiCategory {
         Minecraft mc = Minecraft.getMinecraft();
 
         if (mc.thePlayer == null) {
-            return "Player";
+            return PhiI18n.get("home.player.fallback");
         }
 
         return mc.thePlayer.getName();
@@ -177,7 +175,7 @@ public class HomeCategory extends PhiCategory {
         // Copy the address of the server.
         final PhiInteractiveControlBlock copyAddress = new PhiInteractiveControlBlock(firstRowLeft, firstRowTop,
                 firstBlockWidth, blockHeight, uiScale, PhiControlIcons.SIGNAL, PhiControlIcons.CHECK, false);
-        copyAddress.setLabel("Copy IP");
+        copyAddress.setLabel(PhiI18n.get("home.block.copy_ip.label"));
         copyAddress.setAction(new CopyAddressAction(copyAddress));
 
         this.components.add(copyAddress);
@@ -186,7 +184,7 @@ public class HomeCategory extends PhiCategory {
         final PhiInteractiveControlBlock copyPosition = new PhiInteractiveControlBlock(
                 firstRowLeft + (firstBlockWidth + blockGap), firstRowTop, firstBlockWidth,
                 blockHeight, uiScale, PhiControlIcons.CROSSHAIR, PhiControlIcons.CHECK, false);
-        copyPosition.setLabel("Copy Coord");
+        copyPosition.setLabel(PhiI18n.get("home.block.copy_coord.label"));
         copyPosition.setAction(new CopyPositionAction(copyPosition));
 
         this.components.add(copyPosition);
@@ -197,7 +195,7 @@ public class HomeCategory extends PhiCategory {
                 firstRowLeft + (firstBlockWidth + blockGap) * 2.0F,
                 firstRowTop, firstBlockWidth, blockHeight, uiScale,
                 PhiControlIcons.SUN, PhiControlIcons.MOON, true);
-        theme.setLabel("Theme");
+        theme.setLabel(PhiI18n.get("home.block.theme.label"));
         theme.setAction(new ThemeAction());
 
         this.components.add(theme);
@@ -256,7 +254,8 @@ public class HomeCategory extends PhiCategory {
             String address = PhiGameInfo.getServerAddress();
             boolean copied = PhiGameInfo.copy(address);
 
-            showToast("Address", copied ? address : "The clipboard is not available");
+            showToast(PhiI18n.get("toast.copy_ip.title"),
+                    copied ? address : PhiI18n.get("toast.clipboard.unavailable"));
 
             if (copied) {
                 // The icon of the block turns into the check mark for a moment.
@@ -279,7 +278,8 @@ public class HomeCategory extends PhiCategory {
             String position = PhiGameInfo.getCoordinates();
             boolean copied = PhiGameInfo.copy(position);
 
-            showToast("Position", copied ? position : "The clipboard is not available");
+            showToast(PhiI18n.get("toast.copy_coord.title"),
+                    copied ? position : PhiI18n.get("toast.clipboard.unavailable"));
 
             if (copied) {
                 this.block.triggerFeedback();
@@ -294,7 +294,8 @@ public class HomeCategory extends PhiCategory {
         public void onClicked() {
             PhiTheme.setActive(PhiTheme.isLight() ? PhiTheme.DARK : PhiTheme.LIGHT);
 
-            showToast("Theme", PhiTheme.isLight() ? "Light" : "Dark");
+            showToast(PhiI18n.get("toast.theme.title"),
+                    PhiTheme.isLight() ? PhiI18n.get("theme.light") : PhiI18n.get("theme.dark"));
         }
     }
 

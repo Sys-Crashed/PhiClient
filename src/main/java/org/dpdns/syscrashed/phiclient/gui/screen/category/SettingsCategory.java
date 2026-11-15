@@ -7,6 +7,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * The settings page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
@@ -75,7 +76,7 @@ public class SettingsCategory extends PhiCategory {
         this.themeToggle.setValue(PhiTheme.isLight());
 
         PhiCard themeCard = new PhiCard(cardX, top, cardWidth, cardHeight, uiScale,
-                "Theme", "Switch between the dark and the light palette", null);
+                PhiI18n.get("settings.theme.title"), PhiI18n.get("settings.theme.desc"), null);
         themeCard.setTrailing(this.themeToggle);
 
         this.components.add(themeCard);
@@ -87,7 +88,8 @@ public class SettingsCategory extends PhiCategory {
         cardWidth = contentRight(layout, cardBottom) - cardX;
 
         this.components.add(new PhiCard(cardX, top, cardWidth, cardHeight, uiScale,
-                "Language", "Drop down selector", "Planned"));
+                PhiI18n.get("settings.language.title"), PhiI18n.get("settings.language.desc"),
+                PhiI18n.get("status.planned")));
     }
 
     @Override

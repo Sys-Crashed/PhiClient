@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui.screen.category;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * The HUD page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
@@ -32,6 +33,7 @@ public class HudCategory extends PhiCategory {
         float cardHeight = PhiMetrics.CARD_HEIGHT * layout.getUiScale();
         float top = layout.getHubY() + layout.getPadding();
 
-        addCard(layout, top, cardHeight, "HUD editor", "Drag and drop placement of the HUD elements", "Planned");
+        addCard(layout, top, cardHeight, PhiI18n.get("hud.editor.title"),
+                PhiI18n.get("hud.editor.desc"), PhiI18n.get("status.planned"));
     }
 }

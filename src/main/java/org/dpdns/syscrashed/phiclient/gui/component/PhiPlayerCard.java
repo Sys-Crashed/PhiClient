@@ -9,6 +9,7 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiThemeUtils;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -49,9 +50,9 @@ public class PhiPlayerCard extends PhiComponent {
     /** The right x of the content column. */
     private final float contentRight;
 
-    private String playerName = "Player";
+    private String playerName = PhiI18n.get("home.player.fallback");
 
-    private String welcome = "Welcome to PhiClient";
+    private String welcome = PhiI18n.get("home.player.welcome");
 
     private boolean customBackground;
 
@@ -82,7 +83,8 @@ public class PhiPlayerCard extends PhiComponent {
      * @param playerName the name of the player.
      */
     public void setPlayerName(String playerName) {
-        this.playerName = playerName == null || playerName.isEmpty() ? "Player" : playerName;
+        this.playerName = playerName == null || playerName.isEmpty()
+                ? PhiI18n.get("home.player.fallback") : playerName;
         this.avatar.setInitial(this.playerName);
     }
 

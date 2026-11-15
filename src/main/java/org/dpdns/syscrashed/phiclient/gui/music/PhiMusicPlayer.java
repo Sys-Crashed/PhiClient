@@ -11,6 +11,7 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 import net.minecraft.client.Minecraft;
@@ -156,7 +157,7 @@ public class PhiMusicPlayer {
         File track = getCurrentTrack();
 
         if (track == null) {
-            return "No music found";
+            return PhiI18n.get("music.not_found");
         }
 
         String name = track.getName();
@@ -182,7 +183,7 @@ public class PhiMusicPlayer {
             return parent.getName() + "/" + this.musicFolder.getName();
         }
 
-        return "Local music";
+        return PhiI18n.get("music.local");
     }
 
     /**

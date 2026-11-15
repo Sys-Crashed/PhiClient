@@ -4,6 +4,7 @@ import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicPlayer;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * The music page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
@@ -39,17 +40,20 @@ public class MusicCategory extends PhiCategory {
 
         this.player.reload();
 
-        addCard(layout, top, cardHeight, "Music player", "The playback engine is wired up", "Active");
+        addCard(layout, top, cardHeight, PhiI18n.get("music.player.title"),
+                PhiI18n.get("music.player.desc"), PhiI18n.get("status.active"));
 
         top += cardHeight + spacing;
-        addCard(layout, top, cardHeight, "Playlist", "The audio files of the music folder",
-                this.player.getTrackCount() + " tracks");
+        addCard(layout, top, cardHeight, PhiI18n.get("music.playlist.title"),
+                PhiI18n.get("music.playlist.desc"),
+                PhiI18n.tr("music.tracks", this.player.getTrackCount()));
 
         top += cardHeight + spacing;
-        addCard(layout, top, cardHeight, "Current track", this.player.getTitle(), this.player.getArtist());
+        addCard(layout, top, cardHeight, PhiI18n.get("music.current.title"),
+                this.player.getTitle(), this.player.getArtist());
 
         top += cardHeight + spacing;
-        addCard(layout, top, cardHeight, "Music folder", "Put your audio files into this folder",
-                this.player.getMusicFolder().getName());
+        addCard(layout, top, cardHeight, PhiI18n.get("music.folder.title"),
+                PhiI18n.get("music.folder.desc"), this.player.getMusicFolder().getName());
     }
 }

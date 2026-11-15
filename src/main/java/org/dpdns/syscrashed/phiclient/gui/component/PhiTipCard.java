@@ -9,6 +9,7 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.tips.PhiTips;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -25,9 +26,6 @@ import org.lwjgl.nanovg.NanoVG;
  * delegated to {@link PhiTypewriterText}; hover and click share the same shape rule of the card.</p>
  */
 public class PhiTipCard extends PhiComponent {
-
-    /** The hint that tells the player that the card can be clicked. */
-    private static final String HINT = "Click to switch tip";
 
     private final float uiScale;
 
@@ -79,12 +77,13 @@ public class PhiTipCard extends PhiComponent {
         // The headline of the card.
         float titleY = this.y + padding * 0.9F;
 
-        nvg.drawText("Tip", contentLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+        nvg.drawText(PhiI18n.get("home.tip.title"), contentLeft, titleY,
+                PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
         // The hint in the lower right corner of the card.
         float hintY = this.y + this.height - padding * 0.9F - hintSize;
 
-        nvg.drawTextAligned(HINT, contentRight, hintY,
+        nvg.drawTextAligned(PhiI18n.get("home.tip.hint"), contentRight, hintY,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
                 PhiTheme.textSecondary(), hintSize, Fonts.REGULAR);
 

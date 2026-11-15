@@ -7,6 +7,7 @@ import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicPlayer;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -145,7 +146,7 @@ public class PhiMusicControl extends PhiComponent {
         float textRight = contentRight - transportWidth - CONTROL_GAP * this.uiScale;
         float textWidth = Math.max(0.0F, textRight - textX);
 
-        String counter = this.player.getTrackCount() + " tracks";
+        String counter = PhiI18n.tr("music.tracks", this.player.getTrackCount());
         float counterWidth = nvg.textWidth(counter, bodySize, Fonts.REGULAR);
 
         float titleY = coverY + titleSize * 0.1F;

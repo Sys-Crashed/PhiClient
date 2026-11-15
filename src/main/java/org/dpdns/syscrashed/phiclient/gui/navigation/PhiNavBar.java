@@ -200,7 +200,7 @@ public class PhiNavBar {
 
         if (this.hoveredIndex >= 0) {
             PhiCategory category = this.categories.get(this.hoveredIndex);
-            text = category.getName();
+            text = category.getDisplayName();
 
             float top = this.itemTops[this.hoveredIndex];
             float width = this.itemWidths[this.hoveredIndex];

@@ -10,6 +10,7 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.lwjgl.Sys;
 
@@ -54,7 +55,7 @@ public class PhiGitHubPanel extends PhiComponent {
         super(x, y, width, height);
 
         this.uiScale = uiScale;
-        this.label.setContent("Repository");
+        this.label.setContent(PhiI18n.get("home.github.label"));
     }
 
     @Override

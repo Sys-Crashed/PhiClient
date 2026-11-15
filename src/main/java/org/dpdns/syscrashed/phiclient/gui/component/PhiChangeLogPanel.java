@@ -11,6 +11,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -72,9 +73,10 @@ public class PhiChangeLogPanel extends PhiScrollableTextPanel {
         float titleLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, titleY) + padding;
         float titleRight = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height, titleY) - padding;
 
-        nvg.drawText("ChangeLog", titleLeft, titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+        nvg.drawText(PhiI18n.get("changelog.panel.title"), titleLeft, titleY,
+                PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
-        String counter = this.changeLogs.size() + " changes";
+        String counter = PhiI18n.tr("changelog.count", this.changeLogs.size());
 
         nvg.drawTextAligned(counter, titleRight, titleY,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,

@@ -6,6 +6,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
 /**
@@ -15,9 +16,6 @@ import org.lwjgl.nanovg.NanoVG;
  * in the middle of the content area. The real module UI replaces the placeholder in a later stage.</p>
  */
 public class ModulesCategory extends PhiCategory {
-
-    /** The placeholder that is shown until the real module system exists. */
-    private static final String COMING_SOON = "Coming Soon";
 
     /**
      * Creates the modules page.
@@ -41,7 +39,7 @@ public class ModulesCategory extends PhiCategory {
 
         float size = PhiMetrics.FONT_NAME * layout.getUiScale();
 
-        nvg.drawTextAligned(COMING_SOON, centerX, centerY,
+        nvg.drawTextAligned(PhiI18n.get("modules.coming_soon"), centerX, centerY,
                 NanoVG.NVG_ALIGN_CENTER | NanoVG.NVG_ALIGN_MIDDLE,
                 PhiTheme.textSecondary(), size, Fonts.REGULAR);
     }
