@@ -13,6 +13,7 @@ import org.dpdns.syscrashed.phiclient.gui.component.PhiSearchField;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiSongCard;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiSongList;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiVolumeSlider;
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
@@ -27,6 +28,7 @@ import org.dpdns.syscrashed.phiclient.gui.music.PlayMode;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiIconFeedback;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
@@ -70,6 +72,17 @@ public class MusicCategory extends PhiCategory {
     private PhiVolumeSlider volumeSlider;
 
     private PhiPlaylistOverlay overlay;
+
+    /** Play / pause icon morph (Cupertino replace + damped spring), driven by the playing state. */
+    private final PhiIconFeedback playFeedback = new PhiIconFeedback(PhiIcons.PLAY, PhiIcons.PAUSE, true);
+
+    /** Adapts the feedback animator to the icon slot of the play button. */
+    private final PhiIcon playIcon = new PhiIcon() {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            MusicCategory.this.playFeedback.draw(nvg, centerX, centerY, size, color);
+        }
+    };
 
     /** True while the playlist overlay is open. */
     private boolean overlayVisible;
@@ -232,7 +245,7 @@ public class MusicCategory extends PhiCategory {
             }
         });
         this.playButton = new PhiIconButton(transportX + buttonSize + gap, upperY, buttonSize,
-                buttonSize, s, PhiIcons.PLAY);
+                buttonSize, s, this.playIcon);
         this.playButton.setAction(new PhiIconButton.Action() {
             @Override
             public void onClicked() {
@@ -344,7 +357,7 @@ public class MusicCategory extends PhiCategory {
 
         // Progress + time labels (the widgets themselves are components, drawn by super.draw).
         this.progressBar.setProgress(this.manager.getProgress());
-        this.playButton.setIcon(player.isPlaying() ? PhiIcons.PAUSE : PhiIcons.PLAY);
+        this.playFeedback.setStateTarget(player.isPlaying() ? 1.0F : 0.0F);
         this.playButton.setHighlighted(player.isPlaying());
         this.modeButton.setIcon(modeIcon(this.manager.getPlayMode()));
         this.modeButton.setHighlighted(this.manager.getPlayMode() != PlayMode.SEQUENTIAL_LOOP);

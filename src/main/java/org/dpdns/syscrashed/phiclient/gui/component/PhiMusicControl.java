@@ -1,5 +1,6 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
+import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
@@ -8,6 +9,7 @@ import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicPlayer;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiIconFeedback;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
@@ -54,6 +56,17 @@ public class PhiMusicControl extends PhiComponent {
 
     private final PhiProgressBar progressBar;
 
+    /** Play / pause icon morph (Cupertino replace + damped spring), driven by the playing state. */
+    private final PhiIconFeedback playFeedback = new PhiIconFeedback(PhiIcons.PLAY, PhiIcons.PAUSE, true);
+
+    /** Adapts the feedback animator to the icon slot of the play button. */
+    private final PhiIcon playIcon = new PhiIcon() {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            PhiMusicControl.this.playFeedback.draw(nvg, centerX, centerY, size, color);
+        }
+    };
+
     /**
      * @param x       the left x of the bounding box.
      * @param y       the top y of the bounding box.
@@ -83,7 +96,7 @@ public class PhiMusicControl extends PhiComponent {
         this.previousButton = new PhiIconButton(transportX, transportY, transportSize, transportSize,
                 uiScale, PhiIcons.PREVIOUS);
         this.playButton = new PhiIconButton(transportX + transportSize + transportGap, transportY,
-                transportSize, transportSize, uiScale, PhiIcons.PLAY);
+                transportSize, transportSize, uiScale, this.playIcon);
         this.nextButton = new PhiIconButton(transportX + (transportSize + transportGap) * 2.0F, transportY,
                 transportSize, transportSize, uiScale, PhiIcons.NEXT);
 
@@ -204,7 +217,7 @@ public class PhiMusicControl extends PhiComponent {
 
         // Transport buttons, the button of the repository and the progress bar.
         this.progressBar.setProgress(this.player.getProgress());
-        this.playButton.setIcon(this.player.isPlaying() ? PhiIcons.PAUSE : PhiIcons.PLAY);
+        this.playFeedback.setStateTarget(this.player.isPlaying() ? 1.0F : 0.0F);
         this.playButton.setHighlighted(this.player.isPlaying());
 
         this.previousButton.draw(nvg, mouseX, mouseY, partialTicks);
