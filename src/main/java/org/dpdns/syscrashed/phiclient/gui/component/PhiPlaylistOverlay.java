@@ -171,6 +171,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         // It is a plain name field: no search icon and no submit listener - the text is only read
         // when the confirm / rename button is pressed, so return or focus loss never applies it.
         this.nameField.setShowIcon(false);
+        this.nameField.setPlaceholder(PhiI18n.get("music.playlist.name_hint"));
     }
 
     /**
@@ -291,7 +292,12 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        this.scrollState.scrollBy(notches * (this.rowHeight + this.rowGap));
+        // One wheel notch moves a fixed two rows. scrollBy sets a velocity that the inertia then
+        // amplifies ~12.5x, so a single notch used to fly past a dozen rows; setOffset applies the
+        // step directly and stops the inertia, so every row can be selected.
+        float stride = (PhiMetrics.SONG_ROW_HEIGHT + PhiMetrics.SONG_ROW_SPACING) * this.uiScale;
+        float step = notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH * stride;
+        this.scrollState.setOffset(this.scrollState.getOffset() + step);
         return true;
     }
 

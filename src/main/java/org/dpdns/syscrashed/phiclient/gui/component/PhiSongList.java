@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.gui.component.shape.PhiRoundedSquareShape;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 
@@ -26,9 +27,6 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
 
     /** The velocity decay per frame (the inertia of the design specification). */
     private static final float FRICTION = 0.92F;
-
-    /** The speed one wheel notch adds (in pixels per frame). */
-    private static final float WHEEL_SPEED = 9.0F;
 
     /** The spring factor of the border bounce. */
     private static final float BOUNCE = 0.25F;
@@ -94,7 +92,11 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        this.velocity += notches * WHEEL_SPEED;
+        // One wheel notch moves a fixed two rows and stops the inertia. The old velocity-based
+        // scroll accumulated ~12.5 rows per notch, so rows flew past and could not be selected.
+        this.scroll += notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH * (this.rowHeight + this.rowGap);
+        this.velocity = 0.0F;
+        clampScroll();
         return true;
     }
 

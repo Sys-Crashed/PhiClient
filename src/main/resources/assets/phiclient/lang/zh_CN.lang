@@ -58,6 +58,7 @@ music.playlist.create=新建
 music.playlist.default_name=歌单 %d
 music.playlist.empty=暂无歌单
 music.playlist.tracks.empty=曲库中还没有歌曲
+music.playlist.name_hint=键入歌单名称
 music.playlist.name_empty=歌单名称为空
 music.playlist.name_duplicate=已存在同名歌单
 music.playlist.none_selected=请先选择一个歌单

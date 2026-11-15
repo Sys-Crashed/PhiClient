@@ -58,6 +58,7 @@ music.playlist.create=新規作成
 music.playlist.default_name=プレイリスト %d
 music.playlist.empty=プレイリストはまだありません
 music.playlist.tracks.empty=ライブラリにはまだ曲がありません
+music.playlist.name_hint=プレイリスト名を入力
 music.playlist.name_empty=プレイリスト名が空です
 music.playlist.name_duplicate=同じ名前のプレイリストが既にあります
 music.playlist.none_selected=先にプレイリストを選択してください

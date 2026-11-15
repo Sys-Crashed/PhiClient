@@ -67,6 +67,9 @@ public final class PhiMetrics {
     /** Vertical gap between two song rows of the music page. */
     public static final float SONG_ROW_SPACING = 8.0F;
 
+    /** Number of song rows one mouse wheel notch scrolls (a fixed, predictable step). */
+    public static final float WHEEL_ROWS_PER_NOTCH = 2.0F;
+
     /** Height of a tooltip box. */
     public static final float TOOLTIP_HEIGHT = 34.0F;
 

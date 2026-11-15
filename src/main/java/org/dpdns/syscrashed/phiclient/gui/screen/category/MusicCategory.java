@@ -405,13 +405,17 @@ public class MusicCategory extends PhiCategory {
 
         drawControlBar(nvg);
 
-        // Empty state of the list.
+        // Empty state of the list, centered on the visual centre of the slanted content area (the
+        // centroid of the parallelogram, like the empty text of the playlist dialog).
         if (this.cards.isEmpty()) {
             String empty = this.manager.getTracks().isEmpty()
                     ? PhiI18n.get("music.empty") : PhiI18n.get("music.search.empty");
             float textSize = PhiMetrics.FONT_BODY * this.uiScale;
-            nvg.drawTextCentered(empty, this.songList.getX() + this.songList.getWidth() * 0.5F,
-                    this.songList.getY() + this.songList.getHeight() * 0.4F,
+            float centerX = this.songList.getX() + this.songList.getWidth() * 0.5F
+                    + PhiSkew.offset(this.songList.getHeight()) * 0.5F;
+            float centerY = this.songList.getY() + this.songList.getHeight() * 0.5F;
+            nvg.drawTextAligned(empty, centerX, centerY,
+                    NanoVG.NVG_ALIGN_CENTER | NanoVG.NVG_ALIGN_MIDDLE,
                     PhiTheme.textSecondary(), textSize, Fonts.REGULAR);
         }
 

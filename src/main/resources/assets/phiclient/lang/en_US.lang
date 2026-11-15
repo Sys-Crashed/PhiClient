@@ -59,6 +59,7 @@ music.playlist.create=Create
 music.playlist.default_name=Playlist %d
 music.playlist.empty=No playlists yet
 music.playlist.tracks.empty=No songs in the library yet
+music.playlist.name_hint=Enter playlist name
 music.playlist.name_empty=The playlist name is empty
 music.playlist.name_duplicate=A playlist with this name already exists
 music.playlist.none_selected=Select a playlist first

@@ -202,10 +202,23 @@ public class PhiSearchField extends PhiComponent {
         float textWidth = Math.max(0.0F, contentRight - contentLeft - iconSpace);
         float textY = this.y + (this.height - bodySize) * 0.5F;
 
-        if (this.text.length() == 0 && !this.focused) {
+        if (this.text.length() == 0) {
+            // The hint stays while the field is empty - focused or not - so the user always knows
+            // what the field is for. The caret is drawn at the start while the field is focused.
             nvg.drawText(nvg.limitText(this.placeholder, bodySize, Fonts.REGULAR, textWidth),
                     contentLeft, textY, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
-            PhiImeBridge.setCaretGuiPosition(-1, -1);
+
+            if (this.focused) {
+                float caretX = contentLeft + 1.0F;
+                float pulse = 0.5F + 0.5F * (float) Math.sin((now % 1000L) * Math.PI * 2.0D / 1000.0D);
+                if (this.focusAmount > 0.001F) {
+                    nvg.drawRect(caretX, textY, Math.max(1.0F, this.uiScale), bodySize,
+                            PhiTheme.withAlpha(PhiTheme.accent(), this.focusAmount * (0.35F + 0.65F * pulse)));
+                }
+                PhiImeBridge.setCaretGuiPosition((int) caretX, (int) (textY + bodySize));
+            } else {
+                PhiImeBridge.setCaretGuiPosition(-1, -1);
+            }
         } else {
             String shown = nvg.limitText(this.text.toString(), bodySize, Fonts.REGULAR, textWidth);
             int color = PhiTheme.mix(PhiTheme.textPrimary(), PhiTheme.accent(), this.focusAmount);
