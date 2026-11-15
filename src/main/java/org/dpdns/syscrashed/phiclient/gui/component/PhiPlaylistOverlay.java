@@ -3,7 +3,6 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiTrack;
@@ -15,76 +14,80 @@ import org.dpdns.syscrashed.phiclient.gui.widget.PhiScrollState;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
- * The lightweight playlist overlay of the music page
- * (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
+ * The playlist dialog of the music page (package {@code org.dpdns.syscrashed.phiclient.gui.component}).
  *
- * <p>Two modes share one parallelogram panel that covers the song list (never the bottom control
- * bar):</p>
+ * <p>One modal, self-adaptive parallelogram panel that floats above every other element of the hub.
+ * Three modes share one shell:</p>
  * <ul>
- *   <li><b>MANAGE</b> - renames or deletes the selected playlist and orders its members: the name
- *       field spans the full width of the panel and confirms the rename as soon as the editing ends
- *       (return key or focus loss), the delete button shares the title row and every row offers
- *       move-up, move-down and remove controls (small upright vector icons).</li>
- *   <li><b>PICK</b> - adds one track to a playlist: every row is a target playlist. The mode has no
- *       name field and no create button - playlists are created elsewhere.</li>
+ *   <li><b>CREATE</b> - a name field, a checklist of every library track (all unchecked by default)
+ *       and a confirm / cancel row. The name is applied only when the confirm button is pressed.</li>
+ *   <li><b>ADD</b> - the list of the existing playlists with a single selection; the confirm button
+ *       adds the pending track to the selected playlist. Cancel / the close icon change nothing.</li>
+ *   <li><b>MANAGE</b> - a rename field with its own confirm button, the member list (each row removes
+ *       itself) and a delete-playlist button at the bottom (confirmed elsewhere).</li>
  * </ul>
  *
- * <p>The panel follows the global shape and carries no outline. The rows start at the slanted left
- * edge of the panel, so they run along the diagonal of the shape and slide along it while the list
- * scrolls. The list scrolls with the wheel and is clipped to the panel. Clicking outside the panel
- * or on the close icon closes the overlay.</p>
+ * <p>The title row carries only the close icon (pinned to the slanted right edge); there is no delete
+ * key in the title row. The rows scroll along the diagonal of the panel, exactly like the change log:
+ * their x anchor is measured at the un-scrolled row position and slides {@link PhiSkew#SLOPE} pixels
+ * right per scrolled pixel. Every interactive element uses the shared {@link PhiSheen} hover template
+ * with one shape family for both hover and click.</p>
  */
 public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
-    /** The mode of the overlay. */
-    public enum Mode { MANAGE, PICK }
+    /** The mode of the dialog. */
+    public enum Mode { CREATE, ADD, MANAGE }
 
-    /** The actions the overlay offers to the music page. */
+    /** The actions the dialog offers to the music page. */
     public interface Listener {
 
-        /** Closes the overlay. */
+        /** Closes the dialog without applying anything. */
         void onClose();
 
         /**
-         * Applies the name field: the rename of the managed playlist (MANAGE mode). The panel
-         * confirms the name as soon as the editing ends, so there is no apply button.
+         * Creates a playlist with the given name and member track ids (CREATE mode, confirm only).
          *
-         * @param name the text of the name field.
+         * @param name     the entered name.
+         * @param trackIds the checked track identifiers.
          */
-        void onApplyName(String name);
-
-        /** Deletes the managed playlist (MANAGE mode). */
-        void onDelete();
+        void onCreate(String name, List<String> trackIds);
 
         /**
-         * Adds the track to the picked playlist (PICK mode).
+         * Adds the pending track to the selected playlist (ADD mode, confirm only).
          *
-         * @param playlistName the target playlist.
+         * @param playlistName the selected playlist name.
+         * @param trackId      the track to add.
          */
-        void onPick(String playlistName);
+        void onAddToPlaylist(String playlistName, String trackId);
 
         /**
-         * Moves a member of the managed playlist (MANAGE mode).
+         * Renames the managed playlist (MANAGE mode, confirm only).
          *
-         * @param trackId the member.
-         * @param up      true to move towards the beginning.
+         * @param oldName the current name.
+         * @param newName the new name.
          */
-        void onMove(String trackId, boolean up);
+        void onRename(String oldName, String newName);
+
+        /** Deletes the managed playlist (MANAGE mode; the caller confirms first). */
+        void onDeletePlaylist(String name);
 
         /**
-         * Removes a member of the managed playlist (MANAGE mode).
+         * Removes a member from the managed playlist (MANAGE mode).
          *
-         * @param trackId the member.
+         * @param playlistName the playlist name.
+         * @param trackId      the member to remove.
          */
-        void onRemove(String trackId);
+        void onRemoveFromPlaylist(String playlistName, String trackId);
     }
 
-    /** One row of the member / target list. */
+    /** One row of the list, interpreted according to the mode. */
     private static final class Row {
-        private String trackId = "";
         private String title = "";
+        private String trackId = "";
         private String playlistName = "";
+        private boolean checked;
         private float hoverAmount;
+        private float removeHover;
         private final PhiSheen sheen = new PhiSheen();
     }
 
@@ -92,36 +95,70 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
     private final PhiSearchField nameField;
 
-    private Mode mode = Mode.MANAGE;
+    private final PhiScrollState scrollState = new PhiScrollState();
 
-    private String playlistName = "";
+    private Mode mode = Mode.CREATE;
 
     private Listener listener;
 
+    /** MANAGE: the name of the playlist the dialog acts on. */
+    private String playlistName = "";
+
+    /** ADD: the track that the confirm adds. */
+    private String pickTrackId = "";
+
     private final List<Row> rows = new ArrayList<Row>();
 
-    private final PhiScrollState scrollState = new PhiScrollState();
+    /** ADD: the selected playlist name (empty = no selection). */
+    private String selectedPlaylistName = "";
 
-    /** Geometry of the last frame (the hit tests reuse it). */
+    // Geometry of the last frame (the hit tests reuse it).
+    private float contentLeft;
+    private float contentRight;
     private float listTop;
+    private float listBottom;
     private float rowHeight;
-    private float buttonY;
-    private float deleteX;
-    private float deleteWidth;
+
     private float closeX;
     private float closeY;
     private float closeSize;
 
+    private float confirmX;
+    private float confirmY;
+    private float confirmWidth;
+    private float confirmHeight;
+    private float cancelX;
+    private float cancelY;
+    private float cancelWidth;
+    private float cancelHeight;
+
+    private float renameX;
+    private float renameY;
+    private float renameWidth;
+    private float renameHeight;
+    private float deleteX;
+    private float deleteY;
+    private float deleteWidth;
+    private float deleteHeight;
+
+    private final PhiSheen confirmSheen = new PhiSheen();
+    private final PhiSheen cancelSheen = new PhiSheen();
+    private final PhiSheen renameSheen = new PhiSheen();
     private final PhiSheen deleteSheen = new PhiSheen();
+
+    private float confirmHover;
+    private float cancelHover;
+    private float renameHover;
     private float deleteHover;
     private float closeHover;
+
     private long lastFrame = System.currentTimeMillis();
 
     /**
-     * @param x       the left x of the bounding box.
-     * @param y       the top y of the bounding box.
-     * @param width   the width of the bounding box.
-     * @param height  the height of the bounding box.
+     * @param x       the left x of the dialog bounding box.
+     * @param y       the top y of the dialog bounding box.
+     * @param width   the width of the dialog bounding box.
+     * @param height  the height of the dialog bounding box.
      * @param uiScale the design scale factor of the interface.
      */
     public PhiPlaylistOverlay(float x, float y, float width, float height, float uiScale) {
@@ -130,17 +167,9 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
         float fieldHeight = 26.0F * uiScale;
         this.nameField = new PhiSearchField(0.0F, 0.0F, 0.0F, fieldHeight, uiScale);
-        // It is a plain name field here: no search icon, and the rename is confirmed as soon as
-        // the editing ends (return key or focus loss).
+        // It is a plain name field: no search icon and no submit listener - the text is only read
+        // when the confirm / rename button is pressed, so return or focus loss never applies it.
         this.nameField.setShowIcon(false);
-        this.nameField.setSubmitListener(new PhiSearchField.SubmitListener() {
-            @Override
-            public void onSubmit(String text) {
-                if (PhiPlaylistOverlay.this.listener != null) {
-                    PhiPlaylistOverlay.this.listener.onApplyName(text);
-                }
-            }
-        });
     }
 
     /**
@@ -151,43 +180,62 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     }
 
     /**
-     * Shows the management mode for a playlist.
+     * Shows the create mode: a name field and a checklist of every library track.
+     *
+     * @param allTracks the full library (every track, in sort order).
+     */
+    public void showCreate(List<PhiTrack> allTracks) {
+        this.mode = Mode.CREATE;
+        this.playlistName = "";
+        this.nameField.setText("");
+        this.scrollState.reset();
+        this.rows.clear();
+        if (allTracks != null) {
+            for (PhiTrack track : allTracks) {
+                Row row = new Row();
+                row.trackId = track.getId();
+                row.title = track.getTitle();
+                row.checked = false;
+                this.rows.add(row);
+            }
+        }
+    }
+
+    /**
+     * Shows the add mode: the list of the target playlists.
+     *
+     * @param playlistNames the available playlist names.
+     * @param trackId       the track the confirm adds.
+     */
+    public void showAdd(List<String> playlistNames, String trackId) {
+        this.mode = Mode.ADD;
+        this.playlistName = "";
+        this.pickTrackId = trackId != null ? trackId : "";
+        this.selectedPlaylistName = "";
+        this.nameField.setText("");
+        this.scrollState.reset();
+        this.rows.clear();
+        if (playlistNames != null) {
+            for (String target : playlistNames) {
+                Row row = new Row();
+                row.playlistName = target;
+                row.title = target;
+                this.rows.add(row);
+            }
+        }
+    }
+
+    /**
+     * Shows the manage mode for a playlist.
      *
      * @param name    the playlist name.
      * @param members the current members (may be empty).
      */
     public void showManage(String name, List<PhiTrack> members) {
         this.mode = Mode.MANAGE;
-        this.playlistName = name;
-        this.nameField.setText(name);
+        this.playlistName = name != null ? name : "";
+        this.nameField.setText(this.playlistName);
         this.scrollState.reset();
-        rebuildRows(members);
-    }
-
-    /**
-     * Shows the picker mode: the rows are the target playlists.
-     *
-     * @param targets the available playlist names.
-     */
-    public void showPick(List<String> targets) {
-        this.mode = Mode.PICK;
-        this.nameField.setText("");
-        this.scrollState.reset();
-        this.rows.clear();
-        for (String target : targets) {
-            Row row = new Row();
-            row.playlistName = target;
-            row.title = target;
-            this.rows.add(row);
-        }
-    }
-
-    /**
-     * Rebuilds the member rows (MANAGE mode, after a move / remove).
-     *
-     * @param members the current members.
-     */
-    public void rebuildRows(List<PhiTrack> members) {
         this.rows.clear();
         if (members != null) {
             for (PhiTrack track : members) {
@@ -200,10 +248,41 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     }
 
     /**
-     * @return the mode of the overlay.
+     * Rebuilds the member rows (MANAGE mode, after a remove).
+     *
+     * @param members the current members.
+     */
+    public void rebuildMembers(List<PhiTrack> members) {
+        this.rows.clear();
+        if (members != null) {
+            for (PhiTrack track : members) {
+                Row row = new Row();
+                row.trackId = track.getId();
+                row.title = track.getTitle();
+                this.rows.add(row);
+            }
+        }
+    }
+
+    /**
+     * @return the mode of the dialog.
      */
     public Mode getMode() {
         return this.mode;
+    }
+
+    /**
+     * @return the name field text of the dialog (read by the owner when confirming).
+     */
+    public String getNameText() {
+        return this.nameField.getText();
+    }
+
+    /**
+     * @return the selected playlist name (ADD mode; empty when nothing is selected).
+     */
+    public String getSelectedPlaylistName() {
+        return this.selectedPlaylistName;
     }
 
     @Override
@@ -223,147 +302,286 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
         float padding = 16.0F * this.uiScale;
-        float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
-        float contentRight = PhiSkew.contentRight(this.x, this.width, padding);
-
-        nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level2());
-
         float titleSize = PhiMetrics.FONT_TITLE * this.uiScale;
         float bodySize = PhiMetrics.FONT_BODY * this.uiScale;
         float buttonHeight = 26.0F * this.uiScale;
+        float fieldHeight = 26.0F * this.uiScale;
+        float buttonRadius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
 
-        // The close icon sits at the right end of the title row.
+        this.contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
+        this.contentRight = PhiSkew.contentRight(this.x, this.width, padding);
+        float contentWidth = Math.max(20.0F, this.contentRight - this.contentLeft);
+
+        nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level2());
+
+        // Title row: the title on the left, the close icon pinned to the slanted right edge.
         this.closeSize = titleSize;
         this.closeY = this.y + padding * 0.8F;
-        // The title row belongs to the slanted panel: align its right action with the right edge at
-        // the row's own height, not with the bottom-right content corner far to its left.
         this.closeX = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height,
-                this.closeY + this.closeSize * 0.5F) - padding - this.closeSize;
-
-        // The delete button shares the title row, so the name field can use the full width.
-        this.deleteX = 0.0F;
-        this.deleteWidth = 0.0F;
-        float titleRight = this.closeX - padding * 0.6F;
-        String deleteLabel = PhiI18n.get("music.playlist.delete");
-        if (this.mode == Mode.MANAGE) {
-            this.deleteWidth = nvg.textWidth(deleteLabel, bodySize, Fonts.REGULAR) + padding * 1.2F
-                    + PhiSkew.offset(buttonHeight);
-            this.deleteX = titleRight - this.deleteWidth;
-            titleRight = this.deleteX - padding * 0.5F;
-        }
+                this.closeY + this.closeSize * 0.5F) - padding * 0.25F - this.closeSize;
 
         boolean closeHovered = insideBox(mouseX, mouseY, this.closeX, this.closeY, this.closeSize);
         this.closeHover = approach(this.closeHover, closeHovered, deltaMs);
-        boolean deleteHovered = this.mode == Mode.MANAGE && PhiSkew.contains(mouseX, mouseY,
-                this.deleteX, this.closeY, this.deleteWidth, buttonHeight);
-        this.deleteHover = approach(this.deleteHover, deleteHovered, deltaMs);
-        this.deleteSheen.update(deleteHovered);
-
-        if (this.mode == Mode.MANAGE) {
-            float buttonRadius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
-            nvg.drawSkewRect(this.deleteX, this.closeY, this.deleteWidth, buttonHeight,
-                    buttonRadius, PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), this.deleteHover));
-            this.deleteSheen.drawSkew(nvg, this.deleteX, this.closeY, this.deleteWidth, buttonHeight,
-                    buttonRadius, this.deleteHover, PhiTheme.sheen());
-            nvg.drawText(deleteLabel, PhiSkew.contentLeft(this.deleteX, buttonHeight, padding * 0.6F),
-                    this.closeY + (buttonHeight - bodySize) * 0.5F,
-                    PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), this.deleteHover),
-                    bodySize, Fonts.REGULAR);
-        }
-
         drawCross(nvg, this.closeX + this.closeSize * 0.5F, this.closeY + this.closeSize * 0.5F,
                 this.closeSize * (0.5F + 0.05F * this.closeHover),
                 PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), this.closeHover));
 
-        // The title takes the rest of the title row.
-        String title = this.mode == Mode.MANAGE
-                ? PhiI18n.get("music.playlist.manage") : PhiI18n.get("music.playlist.add");
-        nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR,
-                        Math.max(0.0F, titleRight - contentLeft)),
-                contentLeft, this.y + padding * 0.8F, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
+        String title = PhiI18n.get(modeTitleKey());
+        float titleRight = this.closeX - padding * 0.5F;
+        nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR, Math.max(0.0F, titleRight - this.contentLeft)),
+                this.contentLeft, this.closeY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
-        // The name field (MANAGE mode) spans the whole content width. The rename is confirmed by
-        // pressing return or by clicking somewhere else - there is no rename button.
-        this.rowHeight = 30.0F * this.uiScale;
-        float fieldHeight = 26.0F * this.uiScale;
-        this.buttonY = this.y + padding * 0.8F + titleSize + padding * 0.7F;
-
+        // Name field (CREATE) and the rename field (MANAGE). MANAGE reserves the width of the rename
+        // button on the right of the field.
+        float fieldY = this.y + padding * 0.8F + titleSize + padding * 0.7F;
+        float fieldWidth = contentWidth;
         if (this.mode == Mode.MANAGE) {
-            this.nameField.setX(contentLeft);
-            this.nameField.setY(this.buttonY);
-            this.nameField.setWidth(Math.max(20.0F, contentRight - contentLeft));
+            String renameLabel = PhiI18n.get("music.playlist.rename");
+            this.renameWidth = nvg.textWidth(renameLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
+                    + PhiSkew.offset(buttonHeight);
+            this.renameHeight = buttonHeight;
+            this.renameY = fieldY;
+            this.renameX = this.contentRight - this.renameWidth;
+            fieldWidth = Math.max(20.0F, this.renameX - padding * 0.5F - this.contentLeft);
+        }
+
+        if (this.mode == Mode.CREATE || this.mode == Mode.MANAGE) {
+            this.nameField.setX(this.contentLeft);
+            this.nameField.setY(fieldY);
+            this.nameField.setWidth(fieldWidth);
             this.nameField.setHeight(fieldHeight);
             this.nameField.draw(nvg, mouseX, mouseY, partialTicks);
         }
 
-        // The member / target list, clipped to the panel.
-        this.listTop = this.buttonY + (this.mode == Mode.MANAGE
+        // The row list, clipped to the panel.
+        this.rowHeight = 28.0F * this.uiScale;
+        this.listTop = fieldY + (this.mode == Mode.CREATE || this.mode == Mode.MANAGE
                 ? fieldHeight + padding * 0.6F : padding * 0.4F);
-        float listBottom = this.y + this.height - padding * 0.6F;
+
+        // Bottom action row: confirm / cancel (CREATE, ADD) or the delete button (MANAGE).
+        this.confirmWidth = 0.0F;
+        this.cancelWidth = 0.0F;
+        this.deleteWidth = 0.0F;
+        float buttonY = this.y + this.height - padding * 0.8F - buttonHeight;
+
+        if (this.mode == Mode.CREATE || this.mode == Mode.ADD) {
+            this.confirmHeight = buttonHeight;
+            this.cancelHeight = buttonHeight;
+            this.confirmY = buttonY;
+            this.cancelY = buttonY;
+            String confirmLabel = PhiI18n.get("music.confirm.yes");
+            String cancelLabel = PhiI18n.get("music.confirm.no");
+            this.confirmWidth = nvg.textWidth(confirmLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
+                    + PhiSkew.offset(buttonHeight);
+            this.cancelWidth = nvg.textWidth(cancelLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
+                    + PhiSkew.offset(buttonHeight);
+            this.confirmX = this.contentRight - this.confirmWidth;
+            this.cancelX = this.confirmX - this.cancelWidth - padding * 0.5F;
+        } else if (this.mode == Mode.MANAGE) {
+            this.deleteHeight = buttonHeight;
+            this.deleteY = buttonY;
+            String deleteLabel = PhiI18n.get("music.playlist.delete");
+            this.deleteWidth = nvg.textWidth(deleteLabel, bodySize, Fonts.REGULAR) + padding * 1.4F
+                    + PhiSkew.offset(buttonHeight);
+            this.deleteX = this.contentRight - this.deleteWidth;
+        }
+
+        this.listBottom = buttonY - padding * 0.6F;
+
         this.scrollState.setContentSize(this.rows.size() * this.rowHeight,
-                Math.max(0.0F, listBottom - this.listTop));
+                Math.max(0.0F, this.listBottom - this.listTop));
         this.scrollState.update(deltaMs);
 
-        nvg.save();
-        nvg.scissor(this.x, this.listTop, this.width, Math.max(0.0F, listBottom - this.listTop));
+        float offset = this.scrollState.getOffset();
+        float slide = PhiSkew.SLOPE * offset;
 
-        for (int i = 0; i < this.rows.size(); i++) {
-            float rowY = this.listTop + i * this.rowHeight - this.scrollState.getOffset();
-            if (rowY + this.rowHeight < this.listTop || rowY > listBottom) {
-                continue;
+        // The rows follow the slanted left edge and scroll along the diagonal, like the change log.
+        nvg.save();
+        nvg.translate(this.x, this.y);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        nvg.scissor(this.contentLeft - this.x, this.listTop - this.y,
+                this.contentRight - this.contentLeft, Math.max(0.0F, this.listBottom - this.listTop));
+        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
+        nvg.translate(-this.x, -this.y);
+
+        if (this.rows.isEmpty()) {
+            String empty = PhiI18n.get(this.mode == Mode.ADD ? "music.playlist.empty" : "music.empty");
+            nvg.drawTextCentered(empty, this.x + this.width * 0.5F + PhiSkew.offset(this.height) * 0.5F,
+                    this.listTop + (this.listBottom - this.listTop) * 0.4F,
+                    PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
+        } else {
+            for (int i = 0; i < this.rows.size(); i++) {
+                float rowY = this.listTop + i * this.rowHeight - offset;
+                if (rowY + this.rowHeight < this.listTop || rowY > this.listBottom) {
+                    continue;
+                }
+                float anchorX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
+                        this.listTop + i * this.rowHeight) + padding;
+                drawRow(nvg, this.rows.get(i), anchorX + slide, rowY, bodySize, mouseX, mouseY, deltaMs);
             }
-            drawRow(nvg, this.rows.get(i), rowY, bodySize, mouseX, mouseY, deltaMs);
         }
 
         nvg.restore();
+
+        // Action buttons.
+        updateButtonHover(mouseX, mouseY, deltaMs);
+        if (this.mode == Mode.CREATE || this.mode == Mode.ADD) {
+            drawButton(nvg, PhiI18n.get("music.confirm.no"), this.cancelX, this.cancelY,
+                    this.cancelWidth, this.cancelHeight, buttonRadius, bodySize, padding,
+                    this.cancelHover, this.cancelSheen, false,
+                    PhiTheme.textSecondary(), PhiTheme.textPrimary());
+            drawButton(nvg, PhiI18n.get("music.confirm.yes"), this.confirmX, this.confirmY,
+                    this.confirmWidth, this.confirmHeight, buttonRadius, bodySize, padding,
+                    this.confirmHover, this.confirmSheen, true,
+                    PhiTheme.accent(), PhiTheme.accent());
+        } else if (this.mode == Mode.MANAGE) {
+            drawButton(nvg, PhiI18n.get("music.playlist.rename"), this.renameX, this.renameY,
+                    this.renameWidth, this.renameHeight, buttonRadius, bodySize, padding,
+                    this.renameHover, this.renameSheen, false,
+                    PhiTheme.textSecondary(), PhiTheme.textPrimary());
+            drawButton(nvg, PhiI18n.get("music.playlist.delete"), this.deleteX, this.deleteY,
+                    this.deleteWidth, this.deleteHeight, buttonRadius, bodySize, padding,
+                    this.deleteHover, this.deleteSheen, false,
+                    PhiTheme.textSecondary(), PhiTheme.danger());
+        }
     }
 
     /**
-     * Draws one row of the list. Every row starts at the slanted left edge of the panel, so the
-     * entries run along the diagonal of the shape - and they slide along it while the list scrolls.
+     * @return the i18n key of the dialog title of the current mode.
      */
-    private void drawRow(NanoVGManager nvg, Row row, float rowY, float bodySize, int mouseX, int mouseY,
-                         float deltaMs) {
-        float padding = 16.0F * this.uiScale;
-        float rowLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowY) + padding;
-        float rowWidth = this.width - padding * 2.0F;
+    private String modeTitleKey() {
+        switch (this.mode) {
+            case ADD:
+                return "music.playlist.add";
+            case MANAGE:
+                return "music.playlist.manage";
+            case CREATE:
+            default:
+                return "music.playlist.new";
+        }
+    }
 
-        boolean hovered = PhiSkew.contains(mouseX, mouseY, rowLeft, rowY, rowWidth, this.rowHeight);
+    /**
+     * Draws one row of the list. The row starts at the slanted left edge and runs along the diagonal.
+     */
+    private void drawRow(NanoVGManager nvg, Row row, float rowX, float rowY, float bodySize,
+                         int mouseX, int mouseY, float deltaMs) {
+        float padding = 16.0F * this.uiScale;
+        float rowWidth = this.contentRight - this.contentLeft;
+        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
+
+        boolean selected = this.mode == Mode.ADD && row.playlistName.equals(this.selectedPlaylistName);
+        boolean hovered = PhiSkew.contains(mouseX, mouseY, rowX, rowY, rowWidth, this.rowHeight);
         row.hoverAmount = approach(row.hoverAmount, hovered, deltaMs);
         row.sheen.update(hovered);
-        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
-        if (row.hoverAmount > 0.001F) {
-            nvg.drawSkewRect(rowLeft, rowY, rowWidth, this.rowHeight, radius,
-                    PhiTheme.withAlpha(PhiTheme.level3(), row.hoverAmount));
-        }
-        row.sheen.drawSkew(nvg, rowLeft, rowY, rowWidth, this.rowHeight, radius,
+
+        int background = selected ? PhiTheme.level5()
+                : PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), row.hoverAmount);
+        nvg.drawSkewRect(rowX, rowY, rowWidth, this.rowHeight, radius, background);
+        row.sheen.drawSkew(nvg, rowX, rowY, rowWidth, this.rowHeight, radius,
                 row.hoverAmount, PhiTheme.sheen());
 
-        int iconColor = PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), row.hoverAmount);
-        float textRight = rowLeft + rowWidth;
-        if (this.mode == Mode.MANAGE) {
-            // Move-up, move-down and remove icons at the right end of the row.
-            float iconSize = this.rowHeight * 0.5F;
-            float centerY = rowY + this.rowHeight * 0.5F;
-            drawCross(nvg, textRight - iconSize * 0.5F, centerY, iconSize * 0.42F, iconColor);
-            drawTriangle(nvg, textRight - iconSize * 1.8F, centerY, iconSize * 0.42F, false, iconColor);
-            drawTriangle(nvg, textRight - iconSize * 3.1F, centerY, iconSize * 0.42F, true, iconColor);
-            textRight = textRight - iconSize * 3.6F;
+        int textColor = selected ? PhiTheme.accent()
+                : PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), row.hoverAmount);
+        float textY = rowY + (this.rowHeight - bodySize) * 0.5F;
+
+        if (this.mode == Mode.CREATE) {
+            float checkSize = this.rowHeight * 0.5F;
+            float checkX = rowX + padding * 0.4F;
+            float checkY = rowY + (this.rowHeight - checkSize) * 0.5F;
+            drawCheckbox(nvg, checkX, checkY, checkSize, row.checked, textColor);
+            nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
+                            Math.max(0.0F, rowX + rowWidth - (checkX + checkSize + padding * 0.6F))),
+                    checkX + checkSize + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
+            return;
         }
 
+        if (this.mode == Mode.MANAGE) {
+            float removeSize = this.rowHeight * 0.5F;
+            float removeCenterX = rowX + rowWidth - padding * 0.4F - removeSize * 0.5F;
+            float centerY = rowY + this.rowHeight * 0.5F;
+            boolean removeHovered = insideBox(mouseX, mouseY,
+                    removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F, removeSize);
+            row.removeHover = approach(row.removeHover, removeHovered, deltaMs);
+            drawCross(nvg, removeCenterX, centerY, removeSize * 0.42F,
+                    PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), row.removeHover));
+            nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
+                            Math.max(0.0F, rowX + rowWidth - padding * 0.4F - removeSize - padding * 0.6F - rowX)),
+                    rowX + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
+            return;
+        }
+
+        // ADD: a plain selectable row.
         nvg.drawText(nvg.limitText(row.title, bodySize, Fonts.REGULAR,
-                        Math.max(0.0F, textRight - rowLeft)),
-                rowLeft, rowY + (this.rowHeight - bodySize) * 0.5F,
-                PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
+                        Math.max(0.0F, rowWidth - padding * 1.2F)),
+                rowX + padding * 0.6F, textY, textColor, bodySize, Fonts.REGULAR);
     }
 
     /**
-     * Moves a hover amount toward its target (120 ms in, 300 ms out).
+     * Draws a checkbox (an upright rounded square with a check mark when selected).
+     */
+    private static void drawCheckbox(NanoVGManager nvg, float x, float y, float size, boolean checked,
+                                     int color) {
+        float radius = size * 0.25F;
+        if (checked) {
+            nvg.drawRoundedRect(x, y, size, size, radius, PhiTheme.accent());
+            float w = Math.max(1.0F, size * 0.13F);
+            nvg.drawLine(x + size * 0.24F, y + size * 0.52F, x + size * 0.42F, y + size * 0.70F,
+                    PhiTheme.textPrimary(), w);
+            nvg.drawLine(x + size * 0.42F, y + size * 0.70F, x + size * 0.78F, y + size * 0.30F,
+                    PhiTheme.textPrimary(), w);
+        } else {
+            nvg.drawRoundedRectOutline(x, y, size, size, radius, Math.max(1.0F, size * 0.10F), color);
+        }
+    }
+
+    /**
+     * Draws a button with the shared sheen hover template.
+     */
+    private void drawButton(NanoVGManager nvg, String label, float bx, float by, float bw, float bh,
+                            float radius, float bodySize, float padding, float hover,
+                            PhiSheen sheen, boolean primary, int textColor, int textHoverColor) {
+        int base = primary ? PhiTheme.level4() : PhiTheme.level3();
+        int hovered = primary ? PhiTheme.level5() : PhiTheme.level4();
+        nvg.drawSkewRect(bx, by, bw, bh, radius, PhiTheme.mix(base, hovered, hover));
+        sheen.drawSkew(nvg, bx, by, bw, bh, radius, hover, PhiTheme.sheen());
+        nvg.drawText(label, PhiSkew.contentLeft(bx, bh, padding * 0.7F),
+                by + (bh - bodySize) * 0.5F, PhiTheme.mix(textColor, textHoverColor, hover),
+                bodySize, Fonts.REGULAR);
+    }
+
+    /**
+     * Updates the hover state of the action buttons (after their geometry was computed).
+     */
+    private void updateButtonHover(int mouseX, int mouseY, float deltaMs) {
+        if (this.mode == Mode.CREATE || this.mode == Mode.ADD) {
+            boolean confirmHovered = PhiSkew.contains(mouseX, mouseY, this.confirmX, this.confirmY,
+                    this.confirmWidth, this.confirmHeight);
+            boolean cancelHovered = PhiSkew.contains(mouseX, mouseY, this.cancelX, this.cancelY,
+                    this.cancelWidth, this.cancelHeight);
+            this.confirmHover = approach(this.confirmHover, confirmHovered, deltaMs);
+            this.cancelHover = approach(this.cancelHover, cancelHovered, deltaMs);
+            this.confirmSheen.update(confirmHovered);
+            this.cancelSheen.update(cancelHovered);
+        } else if (this.mode == Mode.MANAGE) {
+            boolean renameHovered = PhiSkew.contains(mouseX, mouseY, this.renameX, this.renameY,
+                    this.renameWidth, this.renameHeight);
+            boolean deleteHovered = PhiSkew.contains(mouseX, mouseY, this.deleteX, this.deleteY,
+                    this.deleteWidth, this.deleteHeight);
+            this.renameHover = approach(this.renameHover, renameHovered, deltaMs);
+            this.deleteHover = approach(this.deleteHover, deleteHovered, deltaMs);
+            this.renameSheen.update(renameHovered);
+            this.deleteSheen.update(deleteHovered);
+        }
+    }
+
+    /**
+     * Moves a hover amount toward its target (120 ms in, 420 ms out).
      */
     private static float approach(float current, boolean hovered, float deltaMs) {
         return hovered
                 ? Math.min(1.0F, current + deltaMs / 120.0F)
-                : Math.max(0.0F, current - deltaMs / 300.0F);
+                : Math.max(0.0F, current - deltaMs / 420.0F);
     }
 
     @Override
@@ -383,19 +601,38 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
             return;
         }
 
-        // The delete button of the title row.
-        if (this.mode == Mode.MANAGE && this.deleteWidth > 0.0F
-                && mouseY >= this.closeY && mouseY <= this.closeY + 26.0F * this.uiScale
-                && mouseX >= this.deleteX && mouseX <= this.deleteX + this.deleteWidth) {
-            this.listener.onDelete();
-            return;
-        }
-
-        // Forward to the name field (focus handling, the rename is confirmed on focus loss).
+        // Forward to the name field (focus handling).
         this.nameField.mouseClicked(mouseX, mouseY, mouseButton);
 
+        // Action buttons.
+        if (this.mode == Mode.CREATE || this.mode == Mode.ADD) {
+            if (insideButton(mouseX, mouseY, this.confirmX, this.confirmY, this.confirmWidth, this.confirmHeight)) {
+                this.confirmSheen.restart();
+                onConfirm();
+                return;
+            }
+            if (insideButton(mouseX, mouseY, this.cancelX, this.cancelY, this.cancelWidth, this.cancelHeight)) {
+                this.cancelSheen.restart();
+                this.listener.onClose();
+                return;
+            }
+        } else if (this.mode == Mode.MANAGE) {
+            if (insideButton(mouseX, mouseY, this.renameX, this.renameY, this.renameWidth, this.renameHeight)) {
+                this.renameSheen.restart();
+                if (this.listener != null) {
+                    this.listener.onRename(this.playlistName, this.nameField.getText());
+                }
+                return;
+            }
+            if (insideButton(mouseX, mouseY, this.deleteX, this.deleteY, this.deleteWidth, this.deleteHeight)) {
+                this.deleteSheen.restart();
+                this.listener.onDeletePlaylist(this.playlistName);
+                return;
+            }
+        }
+
         // Rows.
-        if (mouseY < this.listTop) {
+        if (mouseY < this.listTop || mouseY > this.listBottom) {
             return;
         }
         int index = (int) ((mouseY - this.listTop + this.scrollState.getOffset()) / this.rowHeight);
@@ -403,31 +640,63 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
             return;
         }
         Row row = this.rows.get(index);
-        row.sheen.restart();
 
-        if (this.mode == Mode.PICK) {
-            this.listener.onPick(row.playlistName);
+        if (this.mode == Mode.CREATE) {
+            row.checked = !row.checked;
             return;
         }
+        if (this.mode == Mode.ADD) {
+            this.selectedPlaylistName = row.playlistName;
+            return;
+        }
+        if (this.mode == Mode.MANAGE) {
+            // The remove icon at the right end of the row.
+            float padding = 16.0F * this.uiScale;
+            float rowX = PhiSkew.leftEdgeAt(this.x, this.y, this.height,
+                    this.listTop + index * this.rowHeight) + padding
+                    + PhiSkew.SLOPE * this.scrollState.getOffset();
+            float rowY = this.listTop + index * this.rowHeight - this.scrollState.getOffset();
+            float rowWidth = this.contentRight - this.contentLeft;
+            float removeSize = this.rowHeight * 0.5F;
+            float removeCenterX = rowX + rowWidth - padding * 0.4F - removeSize * 0.5F;
+            float centerY = rowY + this.rowHeight * 0.5F;
+            if (insideBox(mouseX, mouseY, removeCenterX - removeSize * 0.5F, centerY - removeSize * 0.5F,
+                    removeSize)) {
+                this.listener.onRemoveFromPlaylist(this.playlistName, row.trackId);
+            }
+        }
+    }
 
-        float rowY = this.listTop + index * this.rowHeight - this.scrollState.getOffset();
-        float padding = 16.0F * this.uiScale;
-        float rowLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowY) + padding;
-        float rowWidth = this.width - padding * 2.0F;
-        float iconSize = this.rowHeight * 0.5F;
-        float textRight = rowLeft + rowWidth;
-
-        if (mouseX >= textRight - iconSize) {
-            this.listener.onRemove(row.trackId);
-        } else if (mouseX >= textRight - iconSize * 2.3F) {
-            this.listener.onMove(row.trackId, false);
-        } else if (mouseX >= textRight - iconSize * 3.6F) {
-            this.listener.onMove(row.trackId, true);
+    /**
+     * Applies the confirm action of the current mode (CREATE / ADD).
+     */
+    private void onConfirm() {
+        if (this.listener == null) {
+            return;
+        }
+        if (this.mode == Mode.CREATE) {
+            List<String> checked = new ArrayList<String>();
+            for (Row row : this.rows) {
+                if (row.checked) {
+                    checked.add(row.trackId);
+                }
+            }
+            this.listener.onCreate(this.nameField.getText(), checked);
+            return;
+        }
+        if (this.mode == Mode.ADD) {
+            this.listener.onAddToPlaylist(this.selectedPlaylistName, this.pickTrackId);
         }
     }
 
     @Override
     public void keyTyped(char typedChar, int keyCode) {
+        if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE) {
+            if (this.listener != null) {
+                this.listener.onClose();
+            }
+            return;
+        }
         this.nameField.keyTyped(typedChar, keyCode);
     }
 
@@ -440,26 +709,11 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         nvg.drawLine(centerX - half, centerY + half, centerX + half, centerY - half, color, w);
     }
 
-    /**
-     * Draws a small triangle pointing up or down (the move icons).
-     */
-    private static void drawTriangle(NanoVGManager nvg, float centerX, float centerY, float half,
-                                     boolean up, int color) {
-        nvg.beginPath();
-        if (up) {
-            nvg.moveTo(centerX, centerY - half);
-            nvg.lineTo(centerX - half, centerY + half * 0.6F);
-            nvg.lineTo(centerX + half, centerY + half * 0.6F);
-        } else {
-            nvg.moveTo(centerX, centerY + half);
-            nvg.lineTo(centerX - half, centerY - half * 0.6F);
-            nvg.lineTo(centerX + half, centerY - half * 0.6F);
-        }
-        nvg.closePath();
-        nvg.fillPath(color);
-    }
-
     private static boolean insideBox(float pointX, float pointY, float boxX, float boxY, float size) {
         return pointX >= boxX && pointX <= boxX + size && pointY >= boxY && pointY <= boxY + size;
+    }
+
+    private static boolean insideButton(float pointX, float pointY, float bx, float by, float bw, float bh) {
+        return PhiSkew.contains(pointX, pointY, bx, by, bw, bh);
     }
 }

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiComponent;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiConfirmOverlay;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiIconButton;
@@ -59,6 +60,9 @@ public class MusicCategory extends PhiCategory {
 
     /** Height of the search field and of the tab bar. */
     private static final float ROW_CONTROLS_HEIGHT = 30.0F;
+
+    /** Share of the hub area the playlist dialog covers (the dialog is self-adaptive). */
+    private static final float DIALOG_AREA_RATIO = 0.35F;
 
     private final PhiMusicManager manager = PhiMusicManager.get();
 
@@ -119,8 +123,8 @@ public class MusicCategory extends PhiCategory {
     /** The playlist the management overlay acts on. */
     private String manageTarget = "";
 
-    /** The track the picker overlay adds to a playlist. */
-    private String pickTrackId = "";
+    /** The playlist the confirmation overlay deletes (empty when the overlay confirms a track). */
+    private String pendingDeletePlaylist = "";
 
     /** The current search filter. */
     private String searchText = "";
@@ -224,19 +228,26 @@ public class MusicCategory extends PhiCategory {
         this.cardsSignature = "";
         rebuildCards();
 
-        // The overlay is centered on the song list: the content rectangle of the panel shares the
-        // center of the list content and uses almost the whole width of the list.
-        float overlayWidth = (listRight - listX) * 0.94F;
-        float overlayX = (listX + listRight - PhiSkew.offset(listHeight) - overlayWidth) * 0.5F;
-        this.overlay = new PhiPlaylistOverlay(overlayX, listTop, overlayWidth, listHeight, s);
+        // The playlist dialog floats above the whole hub, centered on its geometric centre and sized
+        // to a fixed share of the hub area (self-adaptive with the window).
+        float hubW = layout.getHubWidth();
+        float hubH = layout.getHubHeight();
+        float ratio = (float) Math.sqrt(DIALOG_AREA_RATIO);
+        float dialogWidth = Math.max(280.0F * s, hubW * ratio);
+        float dialogHeight = Math.max(200.0F * s, hubH * ratio);
+        float hubCenterX = layout.getHubX() + hubW * 0.5F + PhiSkew.offset(hubH) * 0.5F;
+        float hubCenterY = layout.getHubY() + hubH * 0.5F;
+        float dialogX = hubCenterX - dialogWidth * 0.5F - PhiSkew.offset(dialogHeight) * 0.5F;
+        float dialogY = hubCenterY - dialogHeight * 0.5F;
+        this.overlay = new PhiPlaylistOverlay(dialogX, dialogY, dialogWidth, dialogHeight, s);
         this.overlay.setListener(new OverlayListener());
         this.overlayVisible = false;
 
-        // The confirmation panel sits in the middle of the song list.
+        // The confirmation panel sits in the middle of the hub.
         float confirmWidth = 340.0F * s;
         float confirmHeight = 140.0F * s;
-        float confirmX = (listX + listRight - PhiSkew.offset(confirmHeight) - confirmWidth) * 0.5F;
-        float confirmY = listTop + (listHeight - confirmHeight) * 0.5F;
+        float confirmX = hubCenterX - confirmWidth * 0.5F - PhiSkew.offset(confirmHeight) * 0.5F;
+        float confirmY = hubCenterY - confirmHeight * 0.5F;
         this.confirmOverlay = new PhiConfirmOverlay(confirmX, confirmY, confirmWidth, confirmHeight, s);
         this.confirmOverlay.setListener(new ConfirmListener());
         this.confirmVisible = false;
@@ -397,64 +408,38 @@ public class MusicCategory extends PhiCategory {
                     PhiTheme.textSecondary(), textSize, Fonts.REGULAR);
         }
 
-        if (this.overlayVisible || this.overlayVisibility > 0.001F) {
-            drawSongListBackdrop(nvg, this.songList.getX(), this.songList.getY(),
-                    this.songList.getWidth(), this.songList.getHeight(), this.overlayVisibility);
-            drawOverlayTransition(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
-        }
-
-        // The confirmation panel is the topmost layer of the page.
-        if (this.confirmVisible || this.confirmVisibility > 0.001F) {
-            drawOverlayTransition(nvg, this.confirmOverlay, this.confirmVisibility, mouseX, mouseY, partialTicks);
-        }
-
         drawSongTooltip(nvg, layout, partialTicks);
     }
 
-    /**
-     * Covers the visible song rows with their exact parallelogram shapes before an overlay opens.
-     * A single large slanted rectangle cannot cover the staircase formed by the individual rows:
-     * their left covers and right controls would otherwise peek out around the overlay.
-     */
-    private void drawSongListBackdrop(NanoVGManager nvg, float listX, float listTop, float listWidth,
-                                      float listHeight, float visibility) {
-        float value = Math.max(0.0F, Math.min(1.0F, visibility));
-        float inverse = 1.0F - value;
-        float eased = 1.0F - inverse * inverse * inverse;
-        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
+    @Override
+    public boolean hasModalOverlay() {
+        return this.overlayVisible || this.confirmVisible
+                || this.overlayVisibility > 0.001F || this.confirmVisibility > 0.001F;
+    }
 
-        nvg.save();
-        nvg.setGlobalAlpha(eased);
-        nvg.scissor(listX - 1.0F, listTop, listWidth + 2.0F + listHeight * 0.30F, listHeight);
-        for (PhiSongCard card : this.cards) {
-            if (card.getY() + card.getHeight() < listTop || card.getY() > listTop + listHeight) {
-                continue;
-            }
-            nvg.drawSkewRect(card.getX(), card.getY(), card.getWidth(), card.getHeight(), radius,
-                    PhiTheme.level2());
+    @Override
+    public void drawOverlayLayer(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        if (this.overlayVisible || this.overlayVisibility > 0.001F) {
+            drawOverlayFade(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
         }
-        nvg.restore();
+        if (this.confirmVisible || this.confirmVisibility > 0.001F) {
+            drawOverlayFade(nvg, this.confirmOverlay, this.confirmVisibility, mouseX, mouseY, partialTicks);
+        }
     }
 
     /**
-     * Draws an overlay with a short fade and a subtle scale around its own centroid. Input still
-     * follows the final geometry; the 3% scale never changes the layout or the reading order.
+     * Draws an overlay with a short alpha fade only. No scale is applied: a scale transform shifts the
+     * drawn geometry away from the un-transformed pointer position, which is what used to make the
+     * hover highlight land next to the cursor.
      */
-    private static void drawOverlayTransition(NanoVGManager nvg, PhiComponent overlay, float visibility,
-                                              int mouseX, int mouseY, float partialTicks) {
+    private static void drawOverlayFade(NanoVGManager nvg, PhiComponent overlay, float visibility,
+                                        int mouseX, int mouseY, float partialTicks) {
         float value = Math.max(0.0F, Math.min(1.0F, visibility));
         float inverse = 1.0F - value;
         float eased = 1.0F - inverse * inverse * inverse;
-        float scale = 0.97F + 0.03F * eased;
-        float centerX = overlay.getX() + overlay.getWidth() * 0.5F
-                + PhiSkew.offset(overlay.getHeight()) * 0.5F;
-        float centerY = overlay.getY() + overlay.getHeight() * 0.5F;
 
         nvg.save();
         nvg.setGlobalAlpha(eased);
-        nvg.translate(centerX, centerY);
-        nvg.scale(scale, scale);
-        nvg.translate(-centerX, -centerY);
         overlay.draw(nvg, mouseX, mouseY, partialTicks);
         nvg.restore();
     }
@@ -742,18 +727,32 @@ public class MusicCategory extends PhiCategory {
     }
 
     /**
-     * Opens the picker overlay for a track.
+     * Opens the create dialog: a name field and a checklist of every library track.
+     */
+    private void openCreate() {
+        this.overlay.showCreate(this.manager.getLibrary().getAllTracks());
+        this.overlayVisible = true;
+    }
+
+    /**
+     * Opens the add dialog for a track.
      *
      * @param trackId the track to add.
      */
     private void openPick(String trackId) {
-        this.pickTrackId = trackId;
         List<String> names = new ArrayList<String>();
         for (PhiPlaylist playlist : this.manager.getPlaylists()) {
             names.add(playlist.getName());
         }
-        this.overlay.showPick(names);
+        this.overlay.showAdd(names, trackId);
         this.overlayVisible = true;
+    }
+
+    /**
+     * Shows a toast (used for validation feedback while a dialog stays open).
+     */
+    private void showToast(String title, String message) {
+        PhiClient.getInstance().getGuiManager().getToast().show(title, message);
     }
 
     /**
@@ -785,18 +784,8 @@ public class MusicCategory extends PhiCategory {
 
         @Override
         public void onCreatePlaylist() {
-            // Create with a free default name, then open the manager so the user can rename it.
-            int suffix = 1;
-            String name;
-            do {
-                name = PhiI18n.tr("music.playlist.default_name", suffix);
-                suffix++;
-            } while (MusicCategory.this.manager.getLibrary().getPlaylist(name) != null);
-
-            if (MusicCategory.this.manager.createPlaylist(name)) {
-                MusicCategory.this.manager.setView(LibraryView.PLAYLIST, name);
-                openManage(name);
-            }
+            // The create dialog applies the name only when its confirm button is pressed.
+            openCreate();
         }
 
         @Override
@@ -853,6 +842,14 @@ public class MusicCategory extends PhiCategory {
                 return;
             }
 
+            String playlistName = MusicCategory.this.pendingDeletePlaylist;
+            MusicCategory.this.pendingDeletePlaylist = "";
+            if (!playlistName.isEmpty()) {
+                MusicCategory.this.manager.deletePlaylist(playlistName);
+                MusicCategory.this.overlayVisible = false;
+                return;
+            }
+
             String id = MusicCategory.this.pendingDeleteTrackId;
             MusicCategory.this.pendingDeleteTrackId = "";
             if (!id.isEmpty()) {
@@ -872,6 +869,7 @@ public class MusicCategory extends PhiCategory {
                 return;
             }
 
+            MusicCategory.this.pendingDeletePlaylist = "";
             MusicCategory.this.pendingDeleteTrackId = "";
         }
     }
@@ -884,13 +882,49 @@ public class MusicCategory extends PhiCategory {
         }
 
         @Override
-        public void onApplyName(String name) {
-            if (name == null || name.trim().isEmpty()) {
+        public void onCreate(String name, List<String> trackIds) {
+            String trimmed = name == null ? "" : name.trim();
+            if (trimmed.isEmpty()) {
+                showToast(PhiI18n.get("music.playlist.new"), PhiI18n.get("music.playlist.name_empty"));
                 return;
             }
-            String trimmed = name.trim();
-            if (MusicCategory.this.overlay.getMode() == PhiPlaylistOverlay.Mode.MANAGE
-                    && MusicCategory.this.manager.renamePlaylist(MusicCategory.this.manageTarget, trimmed)) {
+            if (MusicCategory.this.manager.getLibrary().getPlaylist(trimmed) != null) {
+                showToast(PhiI18n.get("music.playlist.new"), PhiI18n.get("music.playlist.name_duplicate"));
+                return;
+            }
+            if (!MusicCategory.this.manager.createPlaylist(trimmed)) {
+                return;
+            }
+            if (trackIds != null) {
+                for (String trackId : trackIds) {
+                    MusicCategory.this.manager.addToPlaylist(trimmed, trackId);
+                }
+            }
+            MusicCategory.this.manager.setView(LibraryView.PLAYLIST, trimmed);
+            MusicCategory.this.overlayVisible = false;
+        }
+
+        @Override
+        public void onAddToPlaylist(String playlistName, String trackId) {
+            if (playlistName == null || playlistName.isEmpty()) {
+                showToast(PhiI18n.get("music.playlist.add"), PhiI18n.get("music.playlist.none_selected"));
+                return;
+            }
+            MusicCategory.this.manager.addToPlaylist(playlistName, trackId);
+            MusicCategory.this.overlayVisible = false;
+        }
+
+        @Override
+        public void onRename(String oldName, String newName) {
+            String trimmed = newName == null ? "" : newName.trim();
+            if (trimmed.isEmpty() || trimmed.equals(oldName)) {
+                return;
+            }
+            if (MusicCategory.this.manager.getLibrary().getPlaylist(trimmed) != null) {
+                showToast(PhiI18n.get("music.playlist.manage"), PhiI18n.get("music.playlist.name_duplicate"));
+                return;
+            }
+            if (MusicCategory.this.manager.renamePlaylist(oldName, trimmed)) {
                 MusicCategory.this.manageTarget = trimmed;
                 MusicCategory.this.overlay.showManage(trimmed,
                         MusicCategory.this.manager.getLibrary().getEffectiveTracks(
@@ -899,29 +933,19 @@ public class MusicCategory extends PhiCategory {
         }
 
         @Override
-        public void onDelete() {
-            MusicCategory.this.manager.deletePlaylist(MusicCategory.this.manageTarget);
-            MusicCategory.this.overlayVisible = false;
+        public void onDeletePlaylist(String name) {
+            MusicCategory.this.pendingDeletePlaylist = name;
+            MusicCategory.this.confirmOverlay.show(PhiI18n.get("music.playlist.delete.title"),
+                    PhiI18n.tr("music.playlist.delete.message", name),
+                    PhiI18n.get("music.playlist.delete"), true);
+            MusicCategory.this.confirmVisible = true;
         }
 
         @Override
-        public void onPick(String playlistName) {
-            MusicCategory.this.manager.addToPlaylist(playlistName, MusicCategory.this.pickTrackId);
-            MusicCategory.this.overlayVisible = false;
-        }
-
-        @Override
-        public void onMove(String trackId, boolean up) {
-            MusicCategory.this.manager.moveInPlaylist(MusicCategory.this.manageTarget, trackId, up);
-            MusicCategory.this.overlay.rebuildRows(MusicCategory.this.manager.getLibrary()
-                    .getEffectiveTracks(LibraryView.PLAYLIST, MusicCategory.this.manageTarget));
-        }
-
-        @Override
-        public void onRemove(String trackId) {
-            MusicCategory.this.manager.removeFromPlaylist(MusicCategory.this.manageTarget, trackId);
-            MusicCategory.this.overlay.rebuildRows(MusicCategory.this.manager.getLibrary()
-                    .getEffectiveTracks(LibraryView.PLAYLIST, MusicCategory.this.manageTarget));
+        public void onRemoveFromPlaylist(String playlistName, String trackId) {
+            MusicCategory.this.manager.removeFromPlaylist(playlistName, trackId);
+            MusicCategory.this.overlay.rebuildMembers(MusicCategory.this.manager.getLibrary()
+                    .getEffectiveTracks(LibraryView.PLAYLIST, playlistName));
         }
     }
 }
