@@ -66,6 +66,20 @@ public final class PhiTrackMetadata {
         if (file == null || !file.isFile()) {
             return null;
         }
+        PhiTrackMetadata metadata = probeWithFfprobe(file);
+        if (metadata == null) {
+            metadata = probeWithJorbis(file);
+        }
+        return metadata;
+    }
+
+    /**
+     * Probes the file with the ffprobe binary (bundled or on the PATH).
+     *
+     * @param file the audio file to probe.
+     * @return the metadata, or {@code null} when the binary is unavailable or the probe fails.
+     */
+    private static PhiTrackMetadata probeWithFfprobe(File file) {
         File binary = resolveBinary();
         List<String> command = new ArrayList<String>();
         command.add(binary != null ? binary.getAbsolutePath() : PROBE_COMMAND);
@@ -95,6 +109,36 @@ public final class PhiTrackMetadata {
                 process.destroy();
             }
         }
+    }
+
+    /**
+     * Probes an OGG Vorbis file with the pure-Java JOrbis library (used when ffprobe is missing).
+     *
+     * @param file the audio file to probe.
+     * @return the metadata, or {@code null} when the file is not a decodable Vorbis stream.
+     */
+    private static PhiTrackMetadata probeWithJorbis(File file) {
+        if (!PhiVorbisDecoder.isVorbisFile(file)) {
+            return null;
+        }
+        PhiVorbisDecoder.ProbeResult result = PhiVorbisDecoder.probe(file);
+        if (result == null || result.durationSeconds <= 0.0D) {
+            return null;
+        }
+        String title = result.title;
+        if (title == null || title.trim().isEmpty()) {
+            title = stripExtension(file.getName());
+        }
+        return new PhiTrackMetadata(title, result.artist, result.durationSeconds);
+    }
+
+    /**
+     * @param name a file name.
+     * @return the name without its extension.
+     */
+    private static String stripExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
     }
 
     /**

@@ -471,6 +471,13 @@ public class GuiPhiHub extends GuiScreen {
                     } else {
                         this.awaitingRightShiftRelease = false;
                     }
+                    continue;
+                }
+
+                // Every other key press reaches the page (text fields, shortcuts). The vanilla
+                // GuiScreen dispatches these through keyTyped, which this override has to do too.
+                if (pressed) {
+                    this.keyTyped(Keyboard.getEventCharacter(), key);
                 }
             }
         }

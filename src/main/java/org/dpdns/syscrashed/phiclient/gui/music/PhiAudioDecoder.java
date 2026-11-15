@@ -31,8 +31,9 @@ import net.minecraft.client.Minecraft;
  * {@code <game dir>/PhiClient/bin/ffmpeg(.exe)} and on the system PATH.</p>
  *
  * <p>When FFmpeg is missing or cannot start, the decoder falls back to the {@code Clip} playback
- * of the Java runtime, which only understands the native formats (WAV, AU, AIFF). Files of any
- * other format cannot be opened in that fallback mode.</p>
+ * of the Java runtime for the native formats (WAV, AU, AIFF) and to the pure-Java
+ * {@link PhiVorbisDecoder} for OGG Vorbis files. Files of any other format cannot be opened in
+ * that fallback mode.</p>
  *
  * <p>All blocking IO runs on the decode thread; the caller thread only reads the volatile state
  * snapshots. Pausing stops the line, which blocks the decode thread through back-pressure and
@@ -89,6 +90,9 @@ public final class PhiAudioDecoder {
 
     private Process process;
 
+    /** The pure-Java Vorbis decoder, non-null while the JOrbis fallback is active. */
+    private volatile PhiVorbisDecoder vorbis;
+
     private Thread decodeThread;
 
     /** true while the decode thread should give up writing to the line. */
@@ -131,12 +135,15 @@ public final class PhiAudioDecoder {
         if (isNativeFormat(file)) {
             return openWithClip(file, startFrame);
         }
-        if (!isFfmpegAvailable()) {
-            PhiLogger.error("PhiAudioDecoder - cannot decode " + file.getName()
-                    + ": format not supported by the Java runtime and no ffmpeg available");
-            return false;
+        if (isFfmpegAvailable()) {
+            return openWithFfmpeg(file, startFrame);
         }
-        return openWithFfmpeg(file, startFrame);
+        if (PhiVorbisDecoder.isVorbisFile(file)) {
+            return openWithVorbis(file, startFrame);
+        }
+        PhiLogger.error("PhiAudioDecoder - cannot decode " + file.getName()
+                + ": format not supported by the Java runtime and no ffmpeg available");
+        return false;
     }
 
     /**
@@ -207,6 +214,10 @@ public final class PhiAudioDecoder {
             waitQuietly(this.process, SHUTDOWN_TIMEOUT_MS);
             this.process.destroyForcibly();
             this.process = null;
+        }
+        if (this.vorbis != null) {
+            this.vorbis.close();
+            this.vorbis = null;
         }
         if (this.decodeThread != null) {
             joinQuietly(this.decodeThread, SHUTDOWN_TIMEOUT_MS);
@@ -334,6 +345,77 @@ public final class PhiAudioDecoder {
         startDrainThread(newProcess);
         startDecodeThread(newProcess, newLine);
         return true;
+    }
+
+    /**
+     * Opens the line and starts the pure-Java Vorbis decode thread (the JOrbis fallback).
+     */
+    private boolean openWithVorbis(File file, long startFrame) {
+        AudioFormat format = new AudioFormat(SAMPLE_RATE, 16, CHANNELS, true, false);
+        SourceDataLine newLine;
+        try {
+            newLine = AudioSystem.getSourceDataLine(format);
+            newLine.open(format, LINE_BUFFER_BYTES);
+        } catch (LineUnavailableException e) {
+            PhiLogger.error("PhiAudioDecoder - audio line unavailable", e);
+            return false;
+        }
+
+        this.line = newLine;
+        this.clipMode = false;
+        this.ended = false;
+        newLine.start();
+        applyVolume();
+
+        startVorbisThread(file, startFrame, newLine);
+        return true;
+    }
+
+    /**
+     * Starts the thread that decodes the OGG file through JOrbis and writes the PCM into the line.
+     */
+    private void startVorbisThread(final File file, final long startFrame, final SourceDataLine line) {
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                PhiVorbisDecoder decoder = new PhiVorbisDecoder();
+                PhiAudioDecoder.this.vorbis = decoder;
+                try {
+                    decoder.open(file);
+                    PhiAudioDecoder.this.totalFrames = decoder.getTotalFrames();
+                    if (startFrame > 0L) {
+                        decoder.skipFrames(startFrame);
+                    }
+                    byte[] buffer = new byte[READ_CHUNK_BYTES];
+                    while (!PhiAudioDecoder.this.closed) {
+                        int read = decoder.read(buffer, 0, buffer.length);
+                        if (read < 0) {
+                            break;
+                        }
+                        int offset = 0;
+                        while (offset < read && !PhiAudioDecoder.this.closed) {
+                            int written = line.write(buffer, offset, read - offset);
+                            offset += written;
+                            PhiAudioDecoder.this.positionFrames += written / BYTES_PER_FRAME;
+                        }
+                    }
+                } catch (Throwable t) {
+                    if (!PhiAudioDecoder.this.closed) {
+                        PhiLogger.error("PhiAudioDecoder - vorbis decode failed for " + file.getName(), t);
+                    }
+                } finally {
+                    PhiAudioDecoder.this.ended = true;
+                    try {
+                        decoder.close();
+                    } catch (Throwable ignored) {
+                        // already closed
+                    }
+                }
+            }
+        }, "PhiMusicVorbis");
+        thread.setDaemon(true);
+        thread.start();
+        this.decodeThread = thread;
     }
 
     /**
@@ -527,6 +609,10 @@ public final class PhiAudioDecoder {
                 return true;
             }
         }
+        // OGG Vorbis plays through the pure-Java JOrbis fallback even without FFmpeg.
+        if ("ogg".equals(extension) || "oga".equals(extension)) {
+            return true;
+        }
         return isFfmpegAvailableStatic();
     }
 
@@ -564,7 +650,7 @@ public final class PhiAudioDecoder {
             }
             return process.exitValue() == 0;
         } catch (IOException e) {
-            PhiLogger.warn("PhiAudioDecoder - ffmpeg not found, playback falls back to native formats");
+            PhiLogger.warn("PhiAudioDecoder - ffmpeg not found, playback falls back to native formats and OGG (JOrbis)");
             return false;
         } finally {
             if (process != null) {
