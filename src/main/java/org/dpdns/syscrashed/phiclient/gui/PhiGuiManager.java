@@ -11,7 +11,6 @@ import org.dpdns.syscrashed.phiclient.management.event.impl.EventTick;
 import org.lwjgl.input.Keyboard;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.settings.KeyBinding;
 
 /**
@@ -98,12 +97,9 @@ public final class PhiGuiManager {
 
         rightShiftDown = down;
 
-        // Music playback is driven per tick so it survives closing the hub; returning to the
-        // main menu stops and releases it (the hub itself does not).
+        // Music playback is driven per tick so it survives closing the hub and returning to the
+        // main menu; the engine is only released on client shutdown (see PhiClient.stop).
         PhiMusicManager music = PhiMusicManager.get();
-        if (this.mc.currentScreen instanceof GuiMainMenu) {
-            music.stopAndRelease();
-        }
         music.update();
     }
 

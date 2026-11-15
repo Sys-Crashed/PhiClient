@@ -13,23 +13,26 @@ import net.minecraft.client.Minecraft;
  *
  * <p>The manager owns the one shared {@link PhiMusicPlayer} engine, the {@link PhiMusicLibrary}, the
  * {@link PhiMusicConfig} and the {@link PhiMusicImporter}, so the home page music card, the music
- * page and the per-tick housekeeping all observe the same playback state. Closing the hub screen does
- * not stop the music: {@link #update()} is driven by the client tick and the playback only stops when
- * the game returns to the main menu or the client shuts down (both call {@link #stopAndRelease()}).</p>
+ * page and the per-tick housekeeping all observe the same playback state. Closing the hub screen and
+ * returning to the main menu do not stop the music: {@link #update()} is driven by the client tick
+ * and the playback only stops when the client shuts down ({@link #stopAndRelease()}).</p>
  *
- * <p>The transport and the settings are delegated to the engine; the engine track list is kept in
- * sync with the current library view ({@link LibraryView}), so next/previous and the pseudo-random
- * mode always act on the visible list. Settings and user data (favorites, playlists) are persisted
- * through {@link PhiMusicConfig} on a debounced schedule and immediately on {@link #stopAndRelease()}.</p>
+ * <p>Selecting a library view ({@link #setView(LibraryView, String)}) only previews it: the visible
+ * list changes, the playback queue does not. The queue is bound to the view that was last started
+ * explicitly ({@link #playView(LibraryView, String)} or {@link #playTrack(String)}), so next/previous
+ * and the pseudo-random mode always act on the list the user actually plays. Settings and user data
+ * (favorites, playlists) are persisted through {@link PhiMusicConfig} on a debounced schedule and
+ * immediately on {@link #stopAndRelease()}.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
  *   <li>{@link #get()} - returns the singleton instance.</li>
  *   <li>{@link #update()} - per-tick housekeeping, called from the GUI manager.</li>
- *   <li>{@link #stopAndRelease()} - stops, releases and persists (main menu, shutdown).</li>
+ *   <li>{@link #stopAndRelease()} - stops, releases and persists (shutdown).</li>
  *   <li>{@link #play()} / {@link #pause()} / {@link #toggle()} / {@link #next()} / {@link #previous()} - transport.</li>
  *   <li>{@link #seek(float)} / {@link #setVolume(int)} / {@link #setPlayMode(PlayMode)} - settings.</li>
- *   <li>{@link #setView(LibraryView, String)} / {@link #getView()} / {@link #getPlaylistName()} - the library view.</li>
+ *   <li>{@link #setView(LibraryView, String)} / {@link #getView()} / {@link #getPlaylistName()} - the previewed library view.</li>
+ *   <li>{@link #playView(LibraryView, String)} / {@link #playTrack(String)} - explicit playback starts.</li>
  *   <li>{@link #setFavorite(String, boolean)} / {@link #isFavorite(String)} - favorites.</li>
  *   <li>{@link #createPlaylist(String)} / {@link #renamePlaylist(String, String)} / {@link #deletePlaylist(String)} / {@link #addToPlaylist(String, String)} / {@link #removeFromPlaylist(String, String)} / {@link #moveInPlaylist(String, String, boolean)} - named playlists.</li>
  *   <li>{@link #importViaDialog()} / {@link #openMusicFolder()} / {@link #installDropTarget()} / {@link #setDropEnabled(boolean)} / {@link #pollImportResult()} - imports.</li>
@@ -51,11 +54,17 @@ public final class PhiMusicManager {
 
     private final PhiMusicImporter importer;
 
-    /** The current library view (applied to the track list by the library layer). */
+    /** The current library view (the list the UI previews; the playback queue is not touched). */
     private LibraryView view = LibraryView.ALL;
 
     /** The name of the selected named playlist when {@link #view} is {@link LibraryView#PLAYLIST}. */
     private String playlistName = "";
+
+    /** The library view the playback queue is bound to (set by the explicit play actions). */
+    private LibraryView playingView = LibraryView.ALL;
+
+    /** The playlist name of {@link #playingView} when it is {@link LibraryView#PLAYLIST}. */
+    private String playingPlaylistName = "";
 
     /** The library revision the engine list was last synced with. */
     private long syncedRevision = -1L;
@@ -86,12 +95,14 @@ public final class PhiMusicManager {
             this.view = LibraryView.ALL;
             this.playlistName = "";
         }
+        this.playingView = this.view;
+        this.playingPlaylistName = this.playlistName;
 
         // Build the track list and restore the last played track (without starting it).
         this.library.rescanNow();
         syncTrackList(true);
         if (!state.lastTrackId.isEmpty()) {
-            List<PhiTrack> effective = this.library.getEffectiveTracks(this.view, this.playlistName);
+            List<PhiTrack> effective = this.library.getEffectiveTracks(this.playingView, this.playingPlaylistName);
             for (int i = 0; i < effective.size(); i++) {
                 if (effective.get(i).getId().equals(state.lastTrackId)) {
                     this.player.selectIndex(i);
@@ -150,7 +161,7 @@ public final class PhiMusicManager {
 
     /**
      * Stops the playback, releases the audio resources and persists the current state. Idempotent -
-     * called when the game returns to the main menu and on client shutdown.
+     * called on client shutdown only; returning to the main menu keeps the playback running.
      */
     public void stopAndRelease() {
         this.player.stopAndRelease();
@@ -236,7 +247,9 @@ public final class PhiMusicManager {
     }
 
     /**
-     * Sets the current library view.
+     * Selects the current library view for previewing only. The visible list changes, the playback
+     * queue is not touched - the transport keeps acting on the list that was last started
+     * explicitly (see {@link #playView}).
      *
      * @param view         the view (all tracks, favorites or one named playlist).
      * @param playlistName the name of the named playlist when {@code view} is
@@ -249,8 +262,54 @@ public final class PhiMusicManager {
             this.view = LibraryView.ALL;
             this.playlistName = "";
         }
-        syncTrackList(true);
         markDirty();
+    }
+
+    /**
+     * Starts the playback of the given library view: the playback queue is replaced with the
+     * effective files of the view and the first track starts immediately, interrupting the current
+     * one. This is the explicit "play this playlist" action - unlike {@link #setView}, which only
+     * previews.
+     *
+     * @param view         the view to play (all tracks, favorites or one named playlist).
+     * @param playlistName the name of the named playlist when {@code view} is
+     *                     {@link LibraryView#PLAYLIST}, ignored otherwise.
+     * @return true when the view is not empty and its first track started.
+     */
+    public boolean playView(LibraryView view, String playlistName) {
+        setView(view, playlistName);
+        this.playingView = this.view;
+        this.playingPlaylistName = this.playlistName;
+        syncTrackList(true);
+        if (this.player.getTrackCount() == 0) {
+            return false;
+        }
+        this.player.playIndex(0);
+        return true;
+    }
+
+    /**
+     * Starts the playback of the given track of the currently previewed view. The playback queue is
+     * first bound to the previewed view, so the index is resolved inside the queue the track belongs
+     * to (clicking a song of a previewed playlist plays exactly that song).
+     *
+     * @param trackId the track identifier.
+     * @return true when the track exists in the previewed view and started.
+     */
+    public boolean playTrack(String trackId) {
+        if (this.playingView != this.view || !this.playingPlaylistName.equals(this.playlistName)) {
+            this.playingView = this.view;
+            this.playingPlaylistName = this.playlistName;
+            syncTrackList(true);
+        }
+        List<File> queue = this.player.getTracks();
+        for (int i = 0; i < queue.size(); i++) {
+            if (PhiMusicLibrary.toId(this.library.getMusicFolder(), queue.get(i)).equals(trackId)) {
+                this.player.playIndex(i);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -326,6 +385,9 @@ public final class PhiMusicManager {
             if (this.playlistName.equals(oldName)) {
                 this.playlistName = newName;
             }
+            if (this.playingPlaylistName.equals(oldName)) {
+                this.playingPlaylistName = newName;
+            }
             markDirty();
             return true;
         }
@@ -340,11 +402,19 @@ public final class PhiMusicManager {
      */
     public boolean deletePlaylist(String name) {
         if (this.library.deletePlaylist(name)) {
+            boolean playingIt = this.playingPlaylistName.equals(name);
             if (this.playlistName.equals(name)) {
                 this.playlistName = "";
                 this.view = LibraryView.ALL;
             }
+            if (playingIt) {
+                this.playingView = LibraryView.ALL;
+                this.playingPlaylistName = "";
+            }
             markDirty();
+            if (playingIt) {
+                syncTrackList(true);
+            }
             return true;
         }
         return false;
@@ -464,7 +534,7 @@ public final class PhiMusicManager {
             return;
         }
         this.syncedRevision = revision;
-        this.player.replaceTracks(this.library.getEffectiveFiles(this.view, this.playlistName));
+        this.player.replaceTracks(this.library.getEffectiveFiles(this.playingView, this.playingPlaylistName));
     }
 
     /**

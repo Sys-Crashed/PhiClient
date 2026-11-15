@@ -373,6 +373,10 @@ public class PhiMusicPlayer {
      * Closes the current track and opens the next one.
      */
     private void loadCurrentTrack() {
+        // A pending seek belongs to the previous track - drop it so a debounced seek cannot land
+        // in the middle of the new one.
+        this.pendingSeekRatio = -1.0F;
+
         File track = getCurrentTrack();
 
         if (track == null) {
