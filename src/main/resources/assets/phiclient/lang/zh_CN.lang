@@ -1,0 +1,107 @@
+# PhiClient language file - zh_CN (简体中文).
+# Key set must match en_US.lang exactly; proper nouns are not translated.
+
+# Categories / navigation
+category.home.title=首页
+category.modules.title=模块
+category.music.title=音乐
+category.settings.title=设置
+category.hud.title=HUD
+
+# Home page - player card
+home.player.welcome=欢迎使用 PhiClient
+home.player.fallback=玩家
+home.player.initial_fallback=?
+
+# Home page - control blocks
+home.block.copy_ip.label=复制 IP
+home.block.copy_coord.label=复制坐标
+home.block.theme.label=主题
+
+# Home page - tip card
+home.tip.title=提示
+home.tip.hint=点击切换提示
+
+# Home page - GitHub panel
+home.github.label=仓库
+
+# Toasts
+toast.copy_ip.title=地址
+toast.copy_coord.title=坐标
+toast.theme.title=主题
+toast.clipboard.unavailable=剪贴板不可用
+
+# Theme names
+theme.light=浅色
+theme.dark=深色
+
+# Modules page
+modules.coming_soon=敬请期待
+
+# Shared statuses
+status.active=运行中
+status.planned=计划中
+
+# Music page
+music.player.title=音乐播放器
+music.player.desc=播放引擎已就绪
+music.playlist.title=播放列表
+music.playlist.desc=音乐文件夹中的音频文件
+music.current.title=当前曲目
+music.folder.title=音乐文件夹
+music.folder.desc=将音频文件放入此文件夹
+music.not_found=未找到音乐
+music.local=本地音乐
+music.tracks=%d 首曲目
+
+# Settings page
+settings.theme.title=主题
+settings.theme.desc=在深色与浅色调色板之间切换
+settings.language.title=语言
+settings.language.desc=下拉选择器
+
+# HUD page
+hud.editor.title=HUD 编辑器
+hud.editor.desc=拖拽摆放 HUD 元素
+
+# ChangeLog
+changelog.panel.title=更新日志
+changelog.count=%d 条更新
+changelog.type.added=新增
+changelog.type.fixed=修复
+changelog.type.improved=改进
+changelog.type.changed=变更
+changelog.type.removed=移除
+changelog.entry.1=带斜形导航带的中央枢纽
+changelog.entry.2=带皮肤头像与更新日志的主页
+changelog.entry.3=可实时切换的深色与浅色调色板
+changelog.entry.4=枢纽跟随游戏窗口并覆盖 35% 区域
+changelog.entry.5=鼠标点击与滚轮可作用于界面
+
+# Tips (exactly 8 entries)
+tips.1=支持开发 - 赞助链接即将上线。
+tips.2=你知道吗？整个界面都向右倾斜。这不是 bug，这是设计。
+tips.3=枢纽只覆盖屏幕的 35%，你仍能看到背后的游戏。
+tips.4=音乐播放器真的会播放 PhiClient/music 文件夹里的音频文件。
+tips.5=如果你读到了这里，你人生中的三秒钟已经流逝。感谢你的支持。
+tips.6=你的皮肤在枢纽里比在物品栏界面更好看。只是说说。
+tips.7=这个列表里有八条提示。你可能永远看不全。大概吧。
+tips.8=加载画面只是游戏在请求你多看它一眼。
+
+# Dynamic game values (reserved for future wiring; not read by the UI yet)
+value.unknown=-
+weather.thunder=雷暴
+weather.rain=下雨
+weather.clear=晴朗
+dimension.nether=下界
+dimension.end=末地
+dimension.overworld=主世界
+server.singleplayer=单人游戏
+
+# UI glyphs
+ui.ellipsis=…
+
+# Language selector labels (written in the language itself)
+language.en_us=English
+language.zh_cn=简体中文
+language.ja_jp=日本語

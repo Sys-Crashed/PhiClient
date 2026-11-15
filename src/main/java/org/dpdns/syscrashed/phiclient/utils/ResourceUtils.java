@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
@@ -25,6 +26,7 @@ import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
  * <p>Provided methods:</p>
  * <ul>
  *   <li>{@link #classpathToByteBuffer(String, Class)} - reads a classpath resource into a direct buffer.</li>
+ *   <li>{@link #readUtf8Text(String, Class)} - reads a classpath resource as an UTF-8 text file.</li>
  * </ul>
  */
 public final class ResourceUtils {
@@ -44,28 +46,78 @@ public final class ResourceUtils {
      * @return the resource content as a direct buffer, or {@code null} if it could not be read.
      */
     public static ByteBuffer classpathToByteBuffer(String path, Class<?> owner) {
-        InputStream in = null;
+        InputStream in = openStream(path, owner);
+        if (in == null) {
+            return null;
+        }
         try {
-            in = owner.getResourceAsStream(path);
-            if (in == null) {
-                // Fall back to the system loader (in release builds the resources sit on the system classpath).
-                in = ClassLoader.getSystemResourceAsStream(path.startsWith("/") ? path.substring(1) : path);
-            }
-            if (in == null) {
-                PhiLogger.error("Resource not found on classpath: " + path);
-                return null;
-            }
             return toDirectBuffer(readAll(in));
         } catch (Exception e) {
             PhiLogger.error("Failed to read classpath resource: " + path, e);
             return null;
         } finally {
-            if (in != null) {
-                try {
-                    in.close();
-                } catch (Exception ignored) {
-                    // ignore
-                }
+            closeQuietly(in);
+        }
+    }
+
+    /**
+     * Reads a classpath resource as an explicitly UTF-8 decoded text file (used by the i18n
+     * {@code .lang} resources).
+     *
+     * <p>Resolves the stream exactly like {@link #classpathToByteBuffer(String, Class)}: the owning
+     * class first, then the system class loader - a plain {@code ClassLoader.getResourceAsStream}
+     * alone breaks in the 1.8.9 dev environment (see the class comment).</p>
+     *
+     * @param path  the resource path, starting with {@code /}.
+     * @param owner the class used to resolve the resource (usually the calling class).
+     * @return the file content decoded as UTF-8, or {@code null} if it could not be read.
+     */
+    public static String readUtf8Text(String path, Class<?> owner) {
+        InputStream in = openStream(path, owner);
+        if (in == null) {
+            return null;
+        }
+        try {
+            return new String(readAll(in), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            PhiLogger.error("Failed to read classpath text resource: " + path, e);
+            return null;
+        } finally {
+            closeQuietly(in);
+        }
+    }
+
+    /**
+     * Opens a classpath resource with the shared resolution semantics: owning class first, then the
+     * system class loader (release builds put resources on the system classpath).
+     *
+     * @param path  the resource path, starting with {@code /}.
+     * @param owner the class used to resolve the resource.
+     * @return an open stream, or {@code null} (with an error logged) if the resource does not exist.
+     */
+    private static InputStream openStream(String path, Class<?> owner) {
+        InputStream in = owner.getResourceAsStream(path);
+        if (in == null) {
+            // Fall back to the system loader (in release builds the resources sit on the system classpath).
+            in = ClassLoader.getSystemResourceAsStream(path.startsWith("/") ? path.substring(1) : path);
+        }
+        if (in == null) {
+            PhiLogger.error("Resource not found on classpath: " + path);
+        }
+        return in;
+    }
+
+    /**
+     * Closes a stream and swallows any failure.
+     *
+     * @param in the stream to close, may be {@code null}.
+     */
+    private static void closeQuietly(InputStream in) {
+        if (in != null) {
+            try {
+                in.close();
+            } catch (Exception ignored) {
+                // ignore
             }
         }
     }

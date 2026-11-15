@@ -1,0 +1,107 @@
+# PhiClient language file - ja_JP (日本語).
+# Key set must match en_US.lang exactly; proper nouns are not translated.
+
+# Categories / navigation
+category.home.title=ホーム
+category.modules.title=モジュール
+category.music.title=ミュージック
+category.settings.title=設定
+category.hud.title=HUD
+
+# Home page - player card
+home.player.welcome=PhiClient へようこそ
+home.player.fallback=プレイヤー
+home.player.initial_fallback=?
+
+# Home page - control blocks
+home.block.copy_ip.label=IP をコピー
+home.block.copy_coord.label=座標をコピー
+home.block.theme.label=テーマ
+
+# Home page - tip card
+home.tip.title=ヒント
+home.tip.hint=クリックでヒントを切り替え
+
+# Home page - GitHub panel
+home.github.label=リポジトリ
+
+# Toasts
+toast.copy_ip.title=アドレス
+toast.copy_coord.title=座標
+toast.theme.title=テーマ
+toast.clipboard.unavailable=クリップボードを利用できません
+
+# Theme names
+theme.light=ライト
+theme.dark=ダーク
+
+# Modules page
+modules.coming_soon=近日公開
+
+# Shared statuses
+status.active=動作中
+status.planned=予定
+
+# Music page
+music.player.title=ミュージックプレイヤー
+music.player.desc=再生エンジンは接続済みです
+music.playlist.title=プレイリスト
+music.playlist.desc=music フォルダーのオーディオファイル
+music.current.title=現在のトラック
+music.folder.title=ミュージックフォルダー
+music.folder.desc=このフォルダーにオーディオファイルを入れてください
+music.not_found=音楽が見つかりません
+music.local=ローカルミュージック
+music.tracks=%d 曲
+
+# Settings page
+settings.theme.title=テーマ
+settings.theme.desc=ダークとライトのパレットを切り替え
+settings.language.title=言語
+settings.language.desc=ドロップダウンセレクター
+
+# HUD page
+hud.editor.title=HUD エディター
+hud.editor.desc=HUD 要素をドラッグ＆ドロップで配置
+
+# ChangeLog
+changelog.panel.title=更新履歴
+changelog.count=%d 件の更新
+changelog.type.added=追加
+changelog.type.fixed=修正
+changelog.type.improved=改善
+changelog.type.changed=変更
+changelog.type.removed=削除
+changelog.entry.1=斜めのナビゲーションバンドを備えた中央ハブ
+changelog.entry.2=スキン肖像と更新履歴を備えたホームページ
+changelog.entry.3=ライブ切り替え可能なダークとライトのパレット
+changelog.entry.4=ハブはゲームウィンドウに追従し、35 パーセントの領域を占有
+changelog.entry.5=マウスクリックとスクロールホイールがインターフェースに届く
+
+# Tips (exactly 8 entries)
+tips.1=開発をサポートしてください - 寄付リンクは近日公開です。
+tips.2=ご存知ですか？インターフェース全体が右に傾いています。バグではなく、デザインです。
+tips.3=ハブは画面の 35 パーセントだけを覆うので、後ろのゲームが見えます。
+tips.4=ミュージックプレイヤーは実際に PhiClient/music フォルダーのオーディオファイルを再生します。
+tips.5=これを読んでいるということは、人生の 3 秒が過ぎました。応援ありがとうございます。
+tips.6=あなたのスキンはインベントリ画面よりもハブのほうが映えます。一応言っておきます。
+tips.7=このリストには 8 つのヒントがあります。全部見ることはないでしょう。たぶん。
+tips.8=ロード画面はゲームがあなたに一瞬見てほしいとお願いしているだけです。
+
+# Dynamic game values (reserved for future wiring; not read by the UI yet)
+value.unknown=-
+weather.thunder=雷雨
+weather.rain=雨
+weather.clear=晴れ
+dimension.nether=ネザー
+dimension.end=ジ・エンド
+dimension.overworld=オーバーワールド
+server.singleplayer=シングルプレイ
+
+# UI glyphs
+ui.ellipsis=…
+
+# Language selector labels (written in the language itself)
+language.en_us=English
+language.zh_cn=简体中文
+language.ja_jp=日本語

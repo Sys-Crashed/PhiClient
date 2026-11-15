@@ -3,6 +3,8 @@ package org.dpdns.syscrashed.phiclient;
 import org.dpdns.syscrashed.phiclient.compat.lwjgl.Lwjgl3NativeInstaller;
 import org.dpdns.syscrashed.phiclient.compat.optifine.OptiFineCompat;
 import org.dpdns.syscrashed.phiclient.gui.PhiGuiManager;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
+import org.dpdns.syscrashed.phiclient.i18n.PhiLanguageConfig;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.dpdns.syscrashed.phiclient.management.event.EventManager;
 
@@ -91,6 +93,10 @@ public final class PhiClient {
         //   LWJGL 2's 32-bit file; loading the wrong library corrupts the JVM heap (0xC0000374). See that class.
         Lwjgl3NativeInstaller.install();
 
+        // i18n: language tables and the persisted selection must be ready before the GUI builds
+        // its first frame, so every category/component can resolve its keys from the start.
+        PhiI18n.init();
+
         // GUI subsystem: NanoVG context + central screen (toggled with Right-Shift).
         guiManager.init();
         eventManager.register(guiManager);
@@ -111,7 +117,10 @@ public final class PhiClient {
 
         guiManager.shutdown();
 
-        // TODO: save config and release resources here.
+        // Best-effort persistence: setLanguage already saves on every switch; this is the safety
+        // net for a shutdown that skipped a switch (and future config state).
+        PhiLanguageConfig.save(PhiI18n.current());
+
         PhiLogger.info(NAME + " stopped.");
     }
 

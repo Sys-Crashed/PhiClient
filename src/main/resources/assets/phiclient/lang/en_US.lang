@@ -1,0 +1,108 @@
+# PhiClient language file - en_US (authoritative key baseline / fallback target).
+# Format: key=value; # starts a comment; \n escapes a newline; %d/%s are format placeholders.
+# The zh_CN and ja_JP files must contain exactly the same key set.
+
+# Categories / navigation
+category.home.title=Home
+category.modules.title=Modules
+category.music.title=Music
+category.settings.title=Setting
+category.hud.title=HUD
+
+# Home page - player card
+home.player.welcome=Welcome to PhiClient
+home.player.fallback=Player
+home.player.initial_fallback=?
+
+# Home page - control blocks
+home.block.copy_ip.label=Copy IP
+home.block.copy_coord.label=Copy Coord
+home.block.theme.label=Theme
+
+# Home page - tip card
+home.tip.title=Tip
+home.tip.hint=Click to switch tip
+
+# Home page - GitHub panel
+home.github.label=Repository
+
+# Toasts
+toast.copy_ip.title=Address
+toast.copy_coord.title=Position
+toast.theme.title=Theme
+toast.clipboard.unavailable=The clipboard is not available
+
+# Theme names
+theme.light=Light
+theme.dark=Dark
+
+# Modules page
+modules.coming_soon=Coming Soon
+
+# Shared statuses
+status.active=Active
+status.planned=Planned
+
+# Music page
+music.player.title=Music player
+music.player.desc=The playback engine is wired up
+music.playlist.title=Playlist
+music.playlist.desc=The audio files of the music folder
+music.current.title=Current track
+music.folder.title=Music folder
+music.folder.desc=Put your audio files into this folder
+music.not_found=No music found
+music.local=Local music
+music.tracks=%d tracks
+
+# Settings page
+settings.theme.title=Theme
+settings.theme.desc=Switch between the dark and the light palette
+settings.language.title=Language
+settings.language.desc=Drop down selector
+
+# HUD page
+hud.editor.title=HUD editor
+hud.editor.desc=Drag and drop placement of the HUD elements
+
+# ChangeLog
+changelog.panel.title=ChangeLog
+changelog.count=%d changes
+changelog.type.added=Added
+changelog.type.fixed=Fixed
+changelog.type.improved=Improved
+changelog.type.changed=Changed
+changelog.type.removed=Removed
+changelog.entry.1=Central hub with a slanted navigation band
+changelog.entry.2=Home page with skin portrait and change log
+changelog.entry.3=Dark and light palette with a live switch
+changelog.entry.4=Hub follows the game window with a 35 percent area
+changelog.entry.5=Mouse clicks and the scroll wheel reach the interface
+
+# Tips (exactly 8 entries)
+tips.1=Support the development - the donation link is coming soon.
+tips.2=Did you know? The whole interface leans to the right. That is not a bug, that is the design.
+tips.3=The hub covers 35 percent of your screen, so you can still see the game behind it.
+tips.4=The music player really plays the audio files of the PhiClient/music folder.
+tips.5=If you are reading this, three seconds of your life are gone. Thank you for your support.
+tips.6=Your skin looks better in the hub than in the inventory screen. Just saying.
+tips.7=There are eight tips in this list. You will never see all of them. Probably.
+tips.8=Loading screens are just the game asking you to look at it for a moment.
+
+# Dynamic game values (reserved for future wiring; not read by the UI yet)
+value.unknown=-
+weather.thunder=Thunder
+weather.rain=Rain
+weather.clear=Clear
+dimension.nether=Nether
+dimension.end=The End
+dimension.overworld=Overworld
+server.singleplayer=Singleplayer
+
+# UI glyphs
+ui.ellipsis=...
+
+# Language selector labels (written in the language itself)
+language.en_us=English
+language.zh_cn=简体中文
+language.ja_jp=日本語
