@@ -65,6 +65,15 @@ public class PhiMusicPlayer {
     /** True once the track list is injected from outside - disables the self-scan. */
     private boolean managed;
 
+    /** How long a seek request waits for a follow-up before it is executed (in milliseconds). */
+    private static final long SEEK_DEBOUNCE_MS = 150L;
+
+    /** The debounced seek target (negative when none is pending). */
+    private float pendingSeekRatio = -1.0F;
+
+    /** The timestamp of the last seek request. */
+    private long pendingSeekTime;
+
     /**
      * Creates the engine and reads the music folder.
      */
@@ -408,7 +417,9 @@ public class PhiMusicPlayer {
     }
 
     /**
-     * Seeks to the given ratio of the current track.
+     * Seeks to the given ratio of the current track. The request is debounced: rapid follow-up
+     * requests (dragging the progress bar) coalesce into one stream restart, which avoids spawning
+     * an FFmpeg process per frame.
      *
      * @param ratio the target position in {@code [0, 1]} (clamped).
      */
@@ -419,10 +430,33 @@ public class PhiMusicPlayer {
             return;
         }
 
-        float clamped = Math.max(0.0F, Math.min(1.0F, ratio));
+        this.pendingSeekRatio = Math.max(0.0F, Math.min(1.0F, ratio));
+        this.pendingSeekTime = System.currentTimeMillis();
+    }
+
+    /**
+     * Executes the pending seek once the debounce window passed. Called from {@link #update()}.
+     */
+    private void flushPendingSeek() {
+        if (this.pendingSeekRatio < 0.0F) {
+            return;
+        }
+
+        if (System.currentTimeMillis() - this.pendingSeekTime < SEEK_DEBOUNCE_MS) {
+            return;
+        }
+
+        float ratio = this.pendingSeekRatio;
+        this.pendingSeekRatio = -1.0F;
+
+        long total = this.decoder.getTotalFrames();
+        if (total <= 0L) {
+            return;
+        }
+
         boolean wasPlaying = this.playing;
 
-        this.decoder.seek(Math.round(clamped * total));
+        this.decoder.seek(Math.round(ratio * total));
 
         if (!wasPlaying) {
             // The decoder restarts its stream on seek - keep the paused state.
@@ -477,6 +511,8 @@ public class PhiMusicPlayer {
      */
     public void update() {
         reload();
+
+        flushPendingSeek();
 
         if (!this.playing || !this.decoder.isOpen()) {
             return;
