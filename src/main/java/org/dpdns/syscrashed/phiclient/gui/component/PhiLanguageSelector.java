@@ -40,6 +40,7 @@ public class PhiLanguageSelector extends PhiComponent {
 
     private final PhiSheen[] sheens = new PhiSheen[PhiLanguage.values().length];
     private final float[] hoverAmounts = new float[PhiLanguage.values().length];
+    private final float[] selectedAmounts = new float[PhiLanguage.values().length];
 
     private long lastFrame;
 
@@ -84,10 +85,13 @@ public class PhiLanguageSelector extends PhiComponent {
                     ? Math.min(1.0F, this.hoverAmounts[i] + deltaMs / HOVER_IN)
                     : Math.max(0.0F, this.hoverAmounts[i] - deltaMs / HOVER_OUT);
 
+            this.selectedAmounts[i] = selected
+                    ? Math.min(1.0F, this.selectedAmounts[i] + deltaMs / 160.0F)
+                    : Math.max(0.0F, this.selectedAmounts[i] - deltaMs / 160.0F);
             this.sheens[i].update(i == hovered);
 
             nvg.drawSkewRect(segmentX, this.y, segmentWidth, this.height, radius,
-                    selected ? PhiTheme.level5() : PhiTheme.level3());
+                    PhiTheme.mix(PhiTheme.level3(), PhiTheme.level5(), this.selectedAmounts[i]));
             this.sheens[i].drawSkew(nvg, segmentX, this.y, segmentWidth, this.height, radius,
                     this.hoverAmounts[i], PhiTheme.level4());
 
@@ -97,8 +101,9 @@ public class PhiLanguageSelector extends PhiComponent {
             float maxWidth = Math.max(0.0F, segmentWidth - 8.0F * scale);
 
             String label = nvg.limitText(languages[i].getDisplayName(), textSize, Fonts.REGULAR, maxWidth);
-            int color = selected ? PhiTheme.accent()
-                    : (i == hovered ? PhiTheme.textPrimary() : PhiTheme.textSecondary());
+            int color = PhiTheme.mix(
+                    PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), this.hoverAmounts[i]),
+                    PhiTheme.accent(), this.selectedAmounts[i]);
 
             nvg.drawTextCentered(label, centerX, textY, color, textSize, Fonts.REGULAR);
         }

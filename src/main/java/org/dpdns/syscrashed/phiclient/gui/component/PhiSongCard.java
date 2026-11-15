@@ -77,6 +77,12 @@ public class PhiSongCard extends PhiComponent {
     private float addX;
     private float deleteX;
 
+    private float favoriteAmount;
+    private float favoriteHover;
+    private float addHover;
+    private float deleteHover;
+    private long lastFrame = System.currentTimeMillis();
+
     /**
      * @param track   the track of the card.
      * @param x       the left x of the bounding box.
@@ -123,9 +129,22 @@ public class PhiSongCard extends PhiComponent {
         updateHover(mouseX, mouseY);
         this.sheen.update(isHovered());
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        this.favoriteAmount = this.favorite
+                ? Math.min(1.0F, this.favoriteAmount + deltaMs / 160.0F)
+                : Math.max(0.0F, this.favoriteAmount - deltaMs / 160.0F);
+        this.favoriteHover = approach(this.favoriteHover,
+                insideBox(mouseX, mouseY, this.favoriteX, this.favoriteY, this.controlSize), deltaMs);
+        this.addHover = approach(this.addHover,
+                insideBox(mouseX, mouseY, this.addX, this.favoriteY, this.controlSize), deltaMs);
+        this.deleteHover = approach(this.deleteHover,
+                insideBox(mouseX, mouseY, this.deleteX, this.favoriteY, this.controlSize), deltaMs);
+
         float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
         int background = this.playing ? PhiTheme.level4()
-                : (isHovered() ? PhiTheme.level4() : PhiTheme.level3());
+                : PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), getHoverProgress());
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, background);
         this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height, radius,
@@ -178,16 +197,25 @@ public class PhiSongCard extends PhiComponent {
         nvg.drawText(this.artist.getLimited(nvg, bodySize, Fonts.REGULAR, textWidth),
                 textX, titleY + titleSize * 1.30F, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
 
-        // The controls themselves (upright, accent only for the active favorite).
-        PhiIcons.PLUS.draw(nvg, this.addX + this.controlSize * 0.5F, controlY + this.controlSize * 0.5F,
-                this.controlSize * 0.72F, PhiTheme.textPrimary());
-        (this.favorite ? PhiIcons.FAVORITE_FILLED : PhiIcons.FAVORITE)
-                .draw(nvg, this.favoriteX + this.controlSize * 0.5F,
-                        controlY + this.controlSize * 0.5F, this.controlSize * 0.86F,
-                        this.favorite ? PhiTheme.accent() : PhiTheme.textSecondary());
-        PhiIcons.DELETE.draw(nvg, this.deleteX + this.controlSize * 0.5F,
-                controlY + this.controlSize * 0.5F, this.controlSize * 0.72F,
-                PhiTheme.textSecondary());
+        // Upright controls: each one eases its own color and size independently of the row.
+        float centerY = controlY + this.controlSize * 0.5F;
+        PhiIcons.PLUS.draw(nvg, this.addX + this.controlSize * 0.5F, centerY,
+                this.controlSize * 0.72F * (1.0F + 0.10F * this.addHover),
+                PhiTheme.mix(PhiTheme.textPrimary(), PhiTheme.accent(), this.addHover));
+
+        float favoriteCenterX = this.favoriteX + this.controlSize * 0.5F;
+        float favoriteSize = this.controlSize * 0.86F * (1.0F + 0.10F * this.favoriteHover);
+        int favoriteOutline = PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.accent(),
+                Math.max(this.favoriteHover, this.favoriteAmount));
+        PhiIcons.FAVORITE.draw(nvg, favoriteCenterX, centerY, favoriteSize, favoriteOutline);
+        if (this.favoriteAmount > 0.001F) {
+            PhiIcons.FAVORITE_FILLED.draw(nvg, favoriteCenterX, centerY, favoriteSize,
+                    PhiTheme.withAlpha(PhiTheme.accent(), this.favoriteAmount));
+        }
+
+        PhiIcons.DELETE.draw(nvg, this.deleteX + this.controlSize * 0.5F, centerY,
+                this.controlSize * 0.72F * (1.0F + 0.10F * this.deleteHover),
+                PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), this.deleteHover));
     }
 
     @Override
@@ -198,19 +226,23 @@ public class PhiSongCard extends PhiComponent {
 
         // The upright controls use axis aligned boxes (they are not part of the skew family).
         if (insideBox(mouseX, mouseY, this.favoriteX, this.favoriteY, this.controlSize)) {
+            beginPress();
             this.listener.onFavorite(this);
             return;
         }
         if (insideBox(mouseX, mouseY, this.addX, this.favoriteY, this.controlSize)) {
+            beginPress();
             this.listener.onAddToPlaylist(this);
             return;
         }
         if (insideBox(mouseX, mouseY, this.deleteX, this.favoriteY, this.controlSize)) {
+            beginPress();
             this.listener.onDelete(this);
             return;
         }
 
         if (isInside(mouseX, mouseY)) {
+            beginPress();
             this.listener.onPlay(this);
         }
     }
@@ -220,6 +252,15 @@ public class PhiSongCard extends PhiComponent {
      */
     private static boolean insideBox(float pointX, float pointY, float boxX, float boxY, float size) {
         return pointX >= boxX && pointX <= boxX + size && pointY >= boxY && pointY <= boxY + size;
+    }
+
+    /**
+     * Moves one control's hover amount toward its target (120 ms in, 240 ms out).
+     */
+    private static float approach(float current, boolean hovered, float deltaMs) {
+        return hovered
+                ? Math.min(1.0F, current + deltaMs / 120.0F)
+                : Math.max(0.0F, current - deltaMs / 240.0F);
     }
 
     /**

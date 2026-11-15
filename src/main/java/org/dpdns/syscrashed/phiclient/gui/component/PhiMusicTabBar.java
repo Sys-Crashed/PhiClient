@@ -58,6 +58,8 @@ public class PhiMusicTabBar extends PhiComponent {
         private boolean createButton;
         private final PhiSheen sheen = new PhiSheen();
         private boolean hovered;
+        private float hoverAmount;
+        private float selectedAmount;
     }
 
     private final float uiScale;
@@ -74,6 +76,8 @@ public class PhiMusicTabBar extends PhiComponent {
 
     /** The tab list signature of the last build (rebuilt only when it changes). */
     private String builtSignature = "";
+
+    private long lastFrame = System.currentTimeMillis();
 
     /**
      * @param x       the left x of the bounding box.
@@ -118,6 +122,10 @@ public class PhiMusicTabBar extends PhiComponent {
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         buildTabs(nvg);
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+
         float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
         float gap = 6.0F * this.uiScale;
 
@@ -132,25 +140,35 @@ public class PhiMusicTabBar extends PhiComponent {
 
             boolean selected = !tab.createButton && isSelected(tab);
             tab.hovered = PhiSkew.contains(mouseX, mouseY, cursor, this.y, tab.width, this.height);
+            tab.hoverAmount = tab.hovered
+                    ? Math.min(1.0F, tab.hoverAmount + deltaMs / 120.0F)
+                    : Math.max(0.0F, tab.hoverAmount - deltaMs / 420.0F);
+            tab.selectedAmount = selected
+                    ? Math.min(1.0F, tab.selectedAmount + deltaMs / 160.0F)
+                    : Math.max(0.0F, tab.selectedAmount - deltaMs / 160.0F);
             tab.sheen.update(tab.hovered);
 
-            int background = selected ? PhiTheme.level5()
-                    : (tab.hovered ? PhiTheme.level4() : PhiTheme.level3());
+            int background = PhiTheme.mix(
+                    PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), tab.hoverAmount),
+                    PhiTheme.level5(), tab.selectedAmount);
             nvg.drawSkewRect(cursor, this.y, tab.width, this.height, radius, background);
             tab.sheen.drawSkew(nvg, cursor, this.y, tab.width, this.height, radius,
-                    tab.hovered ? 1.0F : 0.0F, PhiTheme.sheen());
+                    tab.hoverAmount, PhiTheme.sheen());
 
             if (tab.createButton) {
                 PhiIcons.PLUS.draw(nvg, cursor + tab.width * 0.5F + PhiSkew.offset(this.height) * 0.5F,
-                        this.y + this.height * 0.5F, this.height * 0.5F,
-                        tab.hovered ? PhiTheme.accent() : PhiTheme.textSecondary());
+                        this.y + this.height * 0.5F, this.height * (0.5F + 0.05F * tab.hoverAmount),
+                        PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.accent(), tab.hoverAmount));
             } else {
                 float textSize = PhiMetrics.FONT_BODY * this.uiScale;
                 float textX = PhiSkew.contentLeft(cursor, this.height, this.height * 0.35F);
                 String label = nvg.limitText(tab.label, textSize, Fonts.REGULAR,
                         tab.width - this.height * 0.5F);
+                int color = PhiTheme.mix(
+                        PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), tab.hoverAmount),
+                        PhiTheme.accent(), tab.selectedAmount);
                 nvg.drawText(label, textX, this.y + (this.height - textSize) * 0.5F,
-                        selected ? PhiTheme.accent() : PhiTheme.textSecondary(), textSize, Fonts.REGULAR);
+                        color, textSize, Fonts.REGULAR);
             }
 
             tab.x = cursor;
@@ -171,6 +189,7 @@ public class PhiMusicTabBar extends PhiComponent {
                 continue;
             }
 
+            tab.sheen.restart();
             if (tab.createButton) {
                 if (mouseButton == 0) {
                     this.listener.onCreatePlaylist();

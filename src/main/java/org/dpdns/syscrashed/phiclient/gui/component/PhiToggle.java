@@ -2,6 +2,7 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
 
 /**
  * A toggle switch of the PhiClient interface
@@ -39,6 +40,8 @@ public class PhiToggle extends PhiComponent {
     private float position;
 
     private Listener listener;
+
+    private final PhiSheen sheen = new PhiSheen();
 
     private long lastFrame;
 
@@ -83,6 +86,7 @@ public class PhiToggle extends PhiComponent {
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         updateHover(mouseX, mouseY);
+        this.sheen.update(isHovered());
 
         long now = System.currentTimeMillis();
         float deltaMs = Math.min(100.0F, now - this.lastFrame);
@@ -96,13 +100,15 @@ public class PhiToggle extends PhiComponent {
         float radius = this.height * 0.3F;
 
         // Track.
-        int track = isHovered() ? PhiTheme.level5() : PhiTheme.level4();
+        int track = PhiTheme.mix(PhiTheme.level4(), PhiTheme.level5(), getHoverProgress());
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, track);
+        this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height, radius,
+                getHoverProgress(), PhiTheme.sheen());
 
-        // Knob.
+        // Knob. Its color follows the same animated position as its movement.
         float travel = this.width - knobSize - inset * 2.0F;
         float knobX = this.x + inset + travel * this.position;
-        int knob = this.value ? PhiTheme.accent() : PhiTheme.level5();
+        int knob = PhiTheme.mix(PhiTheme.level5(), PhiTheme.accent(), this.position);
 
         nvg.drawSkewRect(knobX, this.y + inset, knobSize, knobSize, knobSize * 0.3F, knob);
     }
@@ -117,6 +123,7 @@ public class PhiToggle extends PhiComponent {
             return;
         }
 
+        this.sheen.restart();
         this.value = !this.value;
 
         if (this.listener != null) {

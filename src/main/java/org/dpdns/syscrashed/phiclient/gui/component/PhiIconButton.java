@@ -82,21 +82,24 @@ public class PhiIconButton extends PhiComponent {
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         updateHover(mouseX, mouseY);
 
-        int background = isHovered() ? PhiTheme.level4() : PhiTheme.level3();
-        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
+        float pressScale = getPressScale();
+        int background = PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), getHoverProgress());
+        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale * pressScale;
+        float drawWidth = this.width * pressScale;
+        float drawHeight = this.height * pressScale;
+        float centerX = this.x + this.width * 0.5F;
+        float centerY = this.y + this.height * 0.5F;
 
         // The button is an upright rectangle - a row of leaning buttons would not look even.
-        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius, background);
+        nvg.drawRoundedRect(centerX - drawWidth * 0.5F, centerY - drawHeight * 0.5F,
+                drawWidth, drawHeight, radius, background);
 
         if (this.icon == null) {
             return;
         }
 
-        float centerX = this.x + this.width * 0.5F;
-        float centerY = this.y + this.height * 0.5F;
         int color = this.highlighted ? PhiTheme.accent() : PhiTheme.textPrimary();
-
-        this.icon.draw(nvg, centerX, centerY, this.height * 0.55F, color);
+        this.icon.draw(nvg, centerX, centerY, this.height * 0.55F * pressScale, color);
     }
 
     @Override
@@ -109,6 +112,7 @@ public class PhiIconButton extends PhiComponent {
             return;
         }
 
+        beginPress();
         this.action.onClicked();
     }
 }

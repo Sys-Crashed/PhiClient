@@ -50,6 +50,11 @@ public class PhiProgressBar extends PhiComponent {
     /** The ratio the user is currently dragging to. */
     private float dragRatio;
 
+    /** Smoothly keeps the drag feedback visible after the pointer leaves the bar. */
+    private float dragAmount;
+
+    private long lastFrame;
+
     /**
      * @param x       the left x of the bounding box.
      * @param y       the top y of the bounding box.
@@ -62,6 +67,7 @@ public class PhiProgressBar extends PhiComponent {
         super(x, y, width, height, PhiRoundedSquareShape.INSTANCE);
 
         this.uiScale = uiScale;
+        this.lastFrame = System.currentTimeMillis();
     }
 
     /**
@@ -108,6 +114,8 @@ public class PhiProgressBar extends PhiComponent {
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        updateHover(mouseX, mouseY);
+
         // A drag continues outside the bar: follow the pointer while the button is held.
         if (this.dragging) {
             if (Mouse.isButtonDown(0)) {
@@ -117,16 +125,36 @@ public class PhiProgressBar extends PhiComponent {
             }
         }
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        this.dragAmount = this.dragging
+                ? Math.min(1.0F, this.dragAmount + deltaMs / 90.0F)
+                : Math.max(0.0F, this.dragAmount - deltaMs / 180.0F);
+
+        float feedback = Math.max(getHoverProgress(), this.dragAmount);
         float radius = Math.min(this.height * 0.5F, PhiMetrics.CORNER_RADIUS * this.uiScale);
         float shown = this.dragging ? this.dragRatio : this.progress;
 
         // Remaining part.
-        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius, PhiTheme.level4());
+        nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius,
+                PhiTheme.mix(PhiTheme.level4(), PhiTheme.level5(), feedback * 0.55F));
 
         // Played part.
         if (shown > 0.0F) {
             float played = this.width * shown;
             nvg.drawRoundedRect(this.x, this.y, played, this.height, radius, PhiTheme.accent());
+        }
+
+        if (feedback > 0.001F) {
+            float handleWidth = Math.max(2.0F * this.uiScale, this.height * 0.55F * feedback);
+            float handleHeight = this.height * (1.0F + feedback);
+            float handleX = Math.max(this.x + handleWidth * 0.5F,
+                    Math.min(this.x + this.width - handleWidth * 0.5F, this.x + this.width * shown));
+            float centerY = this.y + this.height * 0.5F;
+            nvg.drawRoundedRect(handleX - handleWidth * 0.5F, centerY - handleHeight * 0.5F,
+                    handleWidth, handleHeight, handleWidth * 0.5F,
+                    PhiTheme.withAlpha(PhiTheme.accent(), feedback));
         }
     }
 

@@ -56,6 +56,10 @@ public class PhiSearchField extends PhiComponent {
 
     private boolean showIcon = true;
 
+    private float focusAmount;
+
+    private long lastFrame = System.currentTimeMillis();
+
     /**
      * @param x       the left x of the bounding box.
      * @param y       the top y of the bounding box.
@@ -173,8 +177,16 @@ public class PhiSearchField extends PhiComponent {
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         updateHover(mouseX, mouseY);
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        this.focusAmount = this.focused
+                ? Math.min(1.0F, this.focusAmount + deltaMs / 140.0F)
+                : Math.max(0.0F, this.focusAmount - deltaMs / 200.0F);
+
         float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
-        int background = this.focused ? PhiTheme.level4() : PhiTheme.level3();
+        float feedback = Math.max(this.focusAmount, getHoverProgress());
+        int background = PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), feedback);
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, background);
 
@@ -196,14 +208,16 @@ public class PhiSearchField extends PhiComponent {
             PhiImeBridge.setCaretGuiPosition(-1, -1);
         } else {
             String shown = nvg.limitText(this.text.toString(), bodySize, Fonts.REGULAR, textWidth);
-            int color = this.focused ? PhiTheme.accent() : PhiTheme.textPrimary();
+            int color = PhiTheme.mix(PhiTheme.textPrimary(), PhiTheme.accent(), this.focusAmount);
             nvg.drawText(shown, contentLeft, textY, color, bodySize, Fonts.REGULAR);
 
             float caretX = contentLeft + nvg.textWidth(shown, bodySize, Fonts.REGULAR) + 1.0F;
 
-            // The caret blinks at the end of the text while the field is focused.
-            if (this.focused && (System.currentTimeMillis() / 500L) % 2L == 0L) {
-                nvg.drawRect(caretX, textY, Math.max(1.0F, this.uiScale), bodySize, PhiTheme.accent());
+            // A smooth caret pulse also fades out with the focus instead of blinking abruptly.
+            float pulse = 0.5F + 0.5F * (float) Math.sin((now % 1000L) * Math.PI * 2.0D / 1000.0D);
+            if (this.focusAmount > 0.001F) {
+                nvg.drawRect(caretX, textY, Math.max(1.0F, this.uiScale), bodySize,
+                        PhiTheme.withAlpha(PhiTheme.accent(), this.focusAmount * (0.35F + 0.65F * pulse)));
             }
 
             // Report the caret so the IME candidate window follows it; cleared when the field blurs.
@@ -216,7 +230,7 @@ public class PhiSearchField extends PhiComponent {
 
         if (this.showIcon) {
             PhiIcons.SEARCH.draw(nvg, iconX, this.y + this.height * 0.5F, iconSize,
-                    this.focused ? PhiTheme.accent() : PhiTheme.textSecondary());
+                    PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.accent(), this.focusAmount));
         }
     }
 

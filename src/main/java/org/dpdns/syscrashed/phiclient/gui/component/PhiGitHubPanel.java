@@ -68,9 +68,10 @@ public class PhiGitHubPanel extends PhiComponent {
         this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height,
                 PhiMetrics.CORNER_RADIUS * this.uiScale, getHoverProgress(), PhiTheme.level4());
 
-        float markSize = MARK_SIZE * this.uiScale;
-        float labelSize = PhiMetrics.FONT_BODY * this.uiScale;
-        float gap = 6.0F * this.uiScale;
+        float pressScale = getPressScale();
+        float markSize = MARK_SIZE * this.uiScale * pressScale;
+        float labelSize = PhiMetrics.FONT_BODY * this.uiScale * pressScale;
+        float gap = 6.0F * this.uiScale * pressScale;
 
         // The mark of GitHub is in the upper half of the panel, the word "Repository" below it - the
         // whole group sits in the middle of the panel.
@@ -98,6 +99,7 @@ public class PhiGitHubPanel extends PhiComponent {
             return;
         }
 
+        beginPress();
         openRepository();
     }
 

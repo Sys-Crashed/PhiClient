@@ -36,6 +36,11 @@ public class PhiVolumeSlider extends PhiComponent {
 
     private boolean dragging;
 
+    /** Smoothly keeps the drag feedback visible after the pointer leaves the slider. */
+    private float dragAmount;
+
+    private long lastFrame;
+
     /** The track geometry of the last frame (shared by the drawing and the hit mapping). */
     private float trackX;
 
@@ -51,6 +56,7 @@ public class PhiVolumeSlider extends PhiComponent {
     public PhiVolumeSlider(float x, float y, float width, float height, float uiScale) {
         super(x, y, width, height, PhiRoundedSquareShape.INSTANCE);
         this.uiScale = uiScale;
+        this.lastFrame = System.currentTimeMillis();
     }
 
     /**
@@ -94,6 +100,8 @@ public class PhiVolumeSlider extends PhiComponent {
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        updateHover(mouseX, mouseY);
+
         if (this.dragging) {
             if (Mouse.isButtonDown(0)) {
                 updateFromMouse(mouseX);
@@ -101,6 +109,14 @@ public class PhiVolumeSlider extends PhiComponent {
                 this.dragging = false;
             }
         }
+
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        this.dragAmount = this.dragging
+                ? Math.min(1.0F, this.dragAmount + deltaMs / 90.0F)
+                : Math.max(0.0F, this.dragAmount - deltaMs / 180.0F);
+        float feedback = Math.max(getHoverProgress(), this.dragAmount);
 
         float iconSize = this.height * 0.9F;
         float iconX = this.x + iconSize * 0.5F;
@@ -122,11 +138,23 @@ public class PhiVolumeSlider extends PhiComponent {
         float trackY = centerY - trackHeight * 0.5F;
         float radius = trackHeight * 0.5F;
 
-        nvg.drawRoundedRect(trackX, trackY, trackWidth, trackHeight, radius, PhiTheme.level4());
+        nvg.drawRoundedRect(trackX, trackY, trackWidth, trackHeight, radius,
+                PhiTheme.mix(PhiTheme.level4(), PhiTheme.level5(), feedback * 0.55F));
 
         float filled = trackWidth * (this.volume / 100.0F);
         if (filled > 0.0F) {
             nvg.drawRoundedRect(trackX, trackY, filled, trackHeight, radius, PhiTheme.accent());
+        }
+
+        if (feedback > 0.001F) {
+            float handleWidth = Math.max(2.0F * this.uiScale, trackHeight * 0.8F * feedback);
+            float handleHeight = trackHeight * (1.0F + 1.6F * feedback);
+            float handleX = Math.max(trackX + handleWidth * 0.5F,
+                    Math.min(trackX + trackWidth - handleWidth * 0.5F, trackX + filled));
+            nvg.drawRoundedRect(handleX - handleWidth * 0.5F,
+                    trackY + trackHeight * 0.5F - handleHeight * 0.5F,
+                    handleWidth, handleHeight, handleWidth * 0.5F,
+                    PhiTheme.withAlpha(PhiTheme.accent(), feedback));
         }
 
         nvg.drawText(label, trackRight + this.height * 0.25F,
