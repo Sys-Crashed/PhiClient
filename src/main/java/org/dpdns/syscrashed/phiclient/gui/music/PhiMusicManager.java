@@ -421,6 +421,28 @@ public final class PhiMusicManager {
     }
 
     /**
+     * Physically deletes a track from the music folder (irreversible - the caller is expected to
+     * confirm with the user first). When the track is the current one of the playback engine, the
+     * decoder is stopped and released beforehand, so the open file handle cannot block the deletion;
+     * the playback queue is rebuilt afterwards.
+     *
+     * @param trackId the track identifier.
+     * @return true when the track file is gone and the queue was rebuilt.
+     */
+    public boolean deleteTrack(String trackId) {
+        File current = this.player.getCurrentTrack();
+        if (current != null && PhiMusicLibrary.toId(this.library.getMusicFolder(), current).equals(trackId)) {
+            this.player.stopAndRelease();
+        }
+        if (!this.library.deleteTrack(trackId)) {
+            return false;
+        }
+        syncTrackList(true);
+        markDirty();
+        return true;
+    }
+
+    /**
      * Appends a track to a named playlist.
      *
      * @param playlistName the playlist name.
@@ -514,6 +536,37 @@ public final class PhiMusicManager {
      */
     public ImportResult pollImportResult() {
         return this.importer.pollLastResult();
+    }
+
+    /**
+     * @return true when import collisions are waiting for the user's decision (overwrite/cancel).
+     */
+    public boolean hasPendingImportConflicts() {
+        return this.importer.hasPendingConflicts();
+    }
+
+    /**
+     * @return the next import collision to decide, or {@code null} when none is pending.
+     */
+    public PhiMusicImporter.ImportConflict pollNextImportConflict() {
+        return this.importer.pollNextConflict();
+    }
+
+    /**
+     * Applies the user's decision for an import collision: overwrite the existing file or cancel the
+     * import. Must be called on the client thread.
+     *
+     * @param conflict  the collision (from {@link #pollNextImportConflict()}).
+     * @param overwrite true to replace the existing file, false to cancel the import.
+     * @return true when the decision was applied (overwritten or skipped), false on copy failure.
+     */
+    public boolean resolveImportConflict(PhiMusicImporter.ImportConflict conflict, boolean overwrite) {
+        boolean applied = this.importer.resolveConflict(conflict, overwrite);
+        if (applied && overwrite) {
+            this.library.rescanNow();
+            syncTrackList(true);
+        }
+        return applied;
     }
 
     /**

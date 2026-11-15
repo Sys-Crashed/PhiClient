@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.lwjgl.Sys;
@@ -19,14 +20,18 @@ import org.lwjgl.Sys;
  * {@code org.dpdns.syscrashed.phiclient.gui.music}).
  *
  * <p>All routes copy the picked files into the music folder (the library never references external
- * paths), deduplicate by name and skip unsupported or broken files. The system dialogs are reached
- * through reflection and the window drag-and-drop through a reflective {@code java.awt.dnd.DropTarget}
- * on the LWJGL display canvas, so the client does not need AWT on the class path and nothing breaks
- * on platforms without it: every route degrades to {@code false} with a log entry.</p>
+ * paths) and skip unsupported or broken files. When the target name already exists in the music
+ * folder, the file is never silently duplicated or overwritten: the collision is published through
+ * {@link #pollNextConflict()} and the client tick presents the user the overwrite/cancel decision
+ * ({@link #resolveConflict(ImportConflict, boolean)}). The system dialogs are reached through
+ * reflection and the window drag-and-drop through a reflective {@code java.awt.dnd.DropTarget} on the
+ * LWJGL display canvas, so the client does not need AWT on the class path and nothing breaks on
+ * platforms without it: every route degrades to {@code false} with a log entry.</p>
  *
  * <p>The file dialog blocks the caller (it is modal); the drop events arrive on the AWT event thread,
- * so the import result and the rescan request are published through {@link #pollLastResult()} and
- * {@link #consumePendingImport()} for the client tick to consume.</p>
+ * so the import result, the rescan request and the collisions are published through
+ * {@link #pollLastResult()}, {@link #consumePendingImport()} and {@link #pollNextConflict()} for the
+ * client tick to consume.</p>
  */
 public final class PhiMusicImporter {
 
@@ -67,11 +72,43 @@ public final class PhiMusicImporter {
         }
     }
 
+    /**
+     * An import collision: the target name already exists in the music folder and the user has to
+     * decide between overwriting the existing file or cancelling the import.
+     */
+    public static final class ImportConflict {
+
+        private final File source;
+        private final String targetName;
+
+        private ImportConflict(File source, String targetName) {
+            this.source = source;
+            this.targetName = targetName;
+        }
+
+        /**
+         * @return the picked file waiting to be imported.
+         */
+        public File getSource() {
+            return this.source;
+        }
+
+        /**
+         * @return the colliding file name inside the music folder.
+         */
+        public String getTargetName() {
+            return this.targetName;
+        }
+    }
+
     /** The music folder the files are copied into. */
     private final File musicFolder;
 
     /** The last import result, waiting to be picked up (volatile: written on the AWT thread). */
     private volatile ImportResult lastResult;
+
+    /** Import collisions waiting for the user's decision (written on the AWT thread, read on the client thread). */
+    private final ConcurrentLinkedQueue<ImportConflict> conflicts = new ConcurrentLinkedQueue<ImportConflict>();
 
     /** True when a drop import succeeded and the library should rescan immediately. */
     private volatile boolean pendingRescan;
@@ -303,10 +340,9 @@ public final class PhiMusicImporter {
                 continue;
             }
             if (target.exists()) {
-                target = uniqueTarget(source.getName());
-            }
-            if (target == null) {
-                failed++;
+                // A track with this name already exists - never silently duplicate or overwrite it;
+                // the user decides through the published conflict.
+                this.conflicts.add(new ImportConflict(source, source.getName()));
                 continue;
             }
             try {
@@ -322,21 +358,41 @@ public final class PhiMusicImporter {
     }
 
     /**
-     * Finds a free target name by appending an increasing number to the file name.
-     *
-     * @param name the desired file name.
-     * @return the free target file, or {@code null} when no name is free.
+     * @return true when import collisions are waiting for the user's decision.
      */
-    private File uniqueTarget(String name) {
-        int dot = name.lastIndexOf('.');
-        String base = dot > 0 ? name.substring(0, dot) : name;
-        String extension = dot > 0 ? name.substring(dot) : "";
-        for (int i = 1; i < 1000; i++) {
-            File candidate = new File(this.musicFolder, base + " (" + i + ")" + extension);
-            if (!candidate.exists()) {
-                return candidate;
-            }
+    public boolean hasPendingConflicts() {
+        return !this.conflicts.isEmpty();
+    }
+
+    /**
+     * @return the next import collision to decide, or {@code null} when none is pending.
+     */
+    public ImportConflict pollNextConflict() {
+        return this.conflicts.poll();
+    }
+
+    /**
+     * Applies the user's decision for an import collision. Must be called on the client thread.
+     *
+     * @param conflict  the collision (from {@link #pollNextConflict()}).
+     * @param overwrite true to replace the existing file, false to cancel the import.
+     * @return true when the decision was applied (overwritten or skipped), false on copy failure.
+     */
+    public boolean resolveConflict(ImportConflict conflict, boolean overwrite) {
+        if (conflict == null) {
+            return false;
         }
-        return null;
+        if (!overwrite) {
+            return true; // cancelled by the user
+        }
+        try {
+            File target = new File(this.musicFolder, conflict.targetName);
+            Files.copy(conflict.source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            this.pendingRescan = true;
+            return true;
+        } catch (IOException e) {
+            PhiLogger.warn("PhiMusicImporter - cannot import " + conflict.targetName);
+            return false;
+        }
     }
 }

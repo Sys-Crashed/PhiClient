@@ -1,6 +1,7 @@
 package org.dpdns.syscrashed.phiclient.gui.music;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -409,6 +410,62 @@ public final class PhiMusicLibrary {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Physically deletes a track file from the music folder (irreversible) and cleans every
+     * reference to it (track table, favorites, named playlists). The caller must release the
+     * decoder handle first when the track is the one currently playing, so the file lock does not
+     * block the deletion.
+     *
+     * @param trackId the track identifier.
+     * @return true when the file is gone afterwards (deleted here or already missing).
+     */
+    public boolean deleteTrack(String trackId) {
+        PhiTrack track = this.tracksById.get(trackId);
+        File file = track != null ? track.getFile() : resolveTrackFile(trackId);
+        if (file == null) {
+            return false;
+        }
+        // Only delete inside the music folder - never trust an arbitrary id.
+        try {
+            File canonicalFolder = this.musicFolder.getCanonicalFile();
+            File canonicalFile = file.getCanonicalFile();
+            if (!canonicalFile.getPath().startsWith(canonicalFolder.getPath() + File.separator)) {
+                PhiLogger.warn("PhiMusicLibrary - refusing to delete a file outside the music folder");
+                return false;
+            }
+        } catch (IOException e) {
+            PhiLogger.warn("PhiMusicLibrary - cannot resolve the track path for deletion");
+            return false;
+        }
+
+        if (file.exists() && !file.delete()) {
+            PhiLogger.warn("PhiMusicLibrary - cannot delete the track file (in use?)");
+            return false;
+        }
+
+        this.tracksById.remove(trackId);
+        this.favorites.remove(trackId);
+        for (PhiPlaylist playlist : this.playlists.values()) {
+            playlist.removeTrack(trackId);
+        }
+        this.revision++;
+        return true;
+    }
+
+    /**
+     * Resolves the file of a track id that is not in the track table, allowing only a direct child
+     * name of the music folder.
+     *
+     * @param trackId the track identifier.
+     * @return the file, or {@code null} when the id is not a plain file name.
+     */
+    private File resolveTrackFile(String trackId) {
+        if (trackId == null || trackId.isEmpty() || trackId.indexOf('/') >= 0 || trackId.indexOf('\\') >= 0) {
+            return null;
+        }
+        return new File(this.musicFolder, trackId);
     }
 
     /**
