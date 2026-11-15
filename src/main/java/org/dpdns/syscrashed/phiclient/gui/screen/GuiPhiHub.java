@@ -447,7 +447,9 @@ public class GuiPhiHub extends GuiScreen {
             return;
         }
 
-        if (this.navBar.mouseClicked(mouseX, mouseY, mouseButton)) {
+        // A modal overlay owns the input: the navigation band must not switch pages behind it.
+        if (!this.currentCategory.hasModalOverlay()
+                && this.navBar.mouseClicked(mouseX, mouseY, mouseButton)) {
             return;
         }
 
@@ -466,7 +468,8 @@ public class GuiPhiHub extends GuiScreen {
             return;
         }
 
-        if (this.navBar.mouseReleased(mouseX, mouseY, mouseButton)) {
+        if (!this.currentCategory.hasModalOverlay()
+                && this.navBar.mouseReleased(mouseX, mouseY, mouseButton)) {
             return;
         }
 
@@ -520,7 +523,12 @@ public class GuiPhiHub extends GuiScreen {
                 boolean pressed = Keyboard.getEventKeyState();
 
                 if (key == Keyboard.KEY_ESCAPE && pressed) {
-                    close();
+                    if (this.currentCategory.hasModalOverlay()) {
+                        // ESC closes the open modal first, not the whole hub.
+                        this.keyTyped('\0', key);
+                    } else {
+                        close();
+                    }
                     return;
                 }
 

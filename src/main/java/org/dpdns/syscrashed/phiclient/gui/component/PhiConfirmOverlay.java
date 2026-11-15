@@ -182,17 +182,17 @@ public class PhiConfirmOverlay extends PhiComponent {
             return;
         }
 
-        if (mouseY >= this.buttonY && mouseY <= this.buttonY + this.buttonHeight) {
-            if (mouseX >= this.confirmX && mouseX <= this.confirmX + this.confirmWidth) {
-                this.confirmSheen.restart();
-                this.listener.onConfirm();
-                return;
-            }
-            if (mouseX >= this.cancelX && mouseX <= this.cancelX + this.cancelWidth) {
-                this.cancelSheen.restart();
-                this.listener.onCancel();
-                return;
-            }
+        // The button hit test matches the hover test (PhiSkew.contains), so the pointer and the
+        // highlight always agree.
+        if (PhiSkew.contains(mouseX, mouseY, this.confirmX, this.buttonY, this.confirmWidth, this.buttonHeight)) {
+            this.confirmSheen.restart();
+            this.listener.onConfirm();
+            return;
+        }
+        if (PhiSkew.contains(mouseX, mouseY, this.cancelX, this.buttonY, this.cancelWidth, this.buttonHeight)) {
+            this.cancelSheen.restart();
+            this.listener.onCancel();
+            return;
         }
     }
 
