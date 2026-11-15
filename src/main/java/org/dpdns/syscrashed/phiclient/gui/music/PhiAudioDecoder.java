@@ -502,13 +502,45 @@ public final class PhiAudioDecoder {
      * @return true when ffmpeg is usable (and therefore every format it understands can play).
      */
     public boolean isFfmpegAvailable() {
+        return isFfmpegAvailableStatic();
+    }
+
+    /**
+     * Decides whether a file can be decoded at all: either through the native Java runtime formats
+     * (WAV, AU, AIFF) or through FFmpeg (any format it understands).
+     *
+     * @param file the candidate file.
+     * @return true when the file could be played by the decoder.
+     */
+    public static boolean isSupportedFile(File file) {
+        if (file == null || !file.isFile()) {
+            return false;
+        }
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return false;
+        }
+        String extension = name.substring(dot + 1).toLowerCase();
+        for (AudioFileFormat.Type type : AudioSystem.getAudioFileTypes()) {
+            if (type.getExtension().equalsIgnoreCase(extension)) {
+                return true;
+            }
+        }
+        return isFfmpegAvailableStatic();
+    }
+
+    /**
+     * Checks the cached ffmpeg availability.
+     */
+    private static boolean isFfmpegAvailableStatic() {
         Boolean cached = ffmpegWorks;
         if (cached != null) {
             return cached.booleanValue();
         }
         synchronized (PhiAudioDecoder.class) {
             if (ffmpegWorks == null) {
-                ffmpegWorks = Boolean.valueOf(checkFfmpegVersion());
+                ffmpegWorks = Boolean.valueOf(checkFfmpegVersionStatic());
             }
             return ffmpegWorks.booleanValue();
         }
@@ -517,9 +549,10 @@ public final class PhiAudioDecoder {
     /**
      * Runs {@code ffmpeg -version} to verify the binary.
      */
-    private boolean checkFfmpegVersion() {
+    private static boolean checkFfmpegVersionStatic() {
+        File binary = resolveBinary();
         List<String> command = new ArrayList<String>();
-        command.add(this.ffmpegPath != null ? this.ffmpegPath.getAbsolutePath() : FFMPEG_COMMAND);
+        command.add(binary != null ? binary.getAbsolutePath() : FFMPEG_COMMAND);
         command.add("-version");
         Process process = null;
         try {

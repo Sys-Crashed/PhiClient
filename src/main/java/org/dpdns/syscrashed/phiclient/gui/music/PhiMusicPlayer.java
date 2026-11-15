@@ -7,9 +7,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
-import javax.sound.sampled.AudioFileFormat;
-import javax.sound.sampled.AudioSystem;
-
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
@@ -18,10 +15,12 @@ import net.minecraft.client.Minecraft;
 /**
  * The music playback engine of the client (package {@code org.dpdns.syscrashed.phiclient.gui.music}).
  *
- * <p>The engine scans the folder {@code PhiClient/music} inside the game directory and plays the
- * found files through the {@link PhiAudioDecoder}, so every format FFmpeg understands plays and the
- * native formats (WAV, AU, AIFF) keep working without FFmpeg. The playlist is the list of the files
- * of that folder sorted by name.</p>
+ * <p>The engine plays through the {@link PhiAudioDecoder}, so every format FFmpeg understands plays
+ * and the native formats (WAV, AU, AIFF) keep working without FFmpeg. Standalone instances scan the
+ * folder {@code PhiClient/music} by themselves (backwards compatibility with the old UI); when the
+ * engine is driven by {@link PhiMusicManager}, the track list is injected from {@link PhiMusicLibrary}
+ * via {@link #replaceTracks(List)} and the self-scan is disabled, so the transport always acts on the
+ * current library view (All / Favorite / one named playlist).</p>
  *
  * <p>The engine supports three repeat modes ({@link PlayMode}), seeking, the volume control and the
  * manual transport (play, pause, next, previous). All state is read and mutated on the client tick
@@ -63,6 +62,9 @@ public class PhiMusicPlayer {
 
     private float volume = 1.0F;
 
+    /** True once the track list is injected from outside - disables the self-scan. */
+    private boolean managed;
+
     /**
      * Creates the engine and reads the music folder.
      */
@@ -96,9 +98,14 @@ public class PhiMusicPlayer {
 
     /**
      * Rebuilds the playlist from the music folder. The folder is only read again when something
-     * changed in it, so the call is cheap enough for every frame.
+     * changed in it, so the call is cheap enough for every frame. When the list has been injected
+     * via {@link #replaceTracks(List)}, the self-scan is disabled and this call is a no-op.
      */
     public void reload() {
+        if (this.managed) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
 
         if (now - this.lastReload < RELOAD_INTERVAL) {
@@ -139,22 +146,46 @@ public class PhiMusicPlayer {
      *         FFmpeg is available.
      */
     private boolean isSupported(File file) {
-        String name = file.getName();
-        int dot = name.lastIndexOf('.');
+        return PhiAudioDecoder.isSupportedFile(file);
+    }
 
-        if (dot < 0 || dot == name.length() - 1) {
-            return false;
+    /**
+     * Replaces the track list with the effective list of the library (the transport then acts on the
+     * current library view). Disables the self-scan and keeps the current track when it is still
+     * present. The playback itself is not touched.
+     *
+     * @param files the new track list.
+     */
+    public void replaceTracks(List<File> files) {
+        this.managed = true;
+
+        File current = getCurrentTrack();
+
+        this.tracks.clear();
+        if (files != null) {
+            this.tracks.addAll(files);
         }
 
-        String extension = name.substring(dot + 1).toLowerCase();
-
-        for (AudioFileFormat.Type type : AudioSystem.getAudioFileTypes()) {
-            if (type.getExtension().equalsIgnoreCase(extension)) {
-                return true;
-            }
+        if (current != null) {
+            this.index = this.tracks.indexOf(current);
         }
+        if (this.index < 0 || this.index >= this.tracks.size()) {
+            this.index = this.tracks.isEmpty() ? -1 : 0;
+        }
+    }
 
-        return this.decoder.isFfmpegAvailable();
+    /**
+     * Selects the track at the given index without starting the playback (used to restore the last
+     * played track).
+     *
+     * @param trackIndex the 0-based index (clamped).
+     */
+    public void selectIndex(int trackIndex) {
+        if (this.tracks.isEmpty()) {
+            this.index = -1;
+            return;
+        }
+        this.index = Math.max(0, Math.min(trackIndex, this.tracks.size() - 1));
     }
 
     /**
