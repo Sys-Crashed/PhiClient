@@ -193,9 +193,9 @@ public enum PhiIcons implements PhiIcon {
             nvg.drawRect(centerX - size * 0.40F, centerY - size * 0.30F, size * 0.12F, size * 0.60F, color);
 
             nvg.beginPath();
-            nvg.moveTo(centerX - size * 0.36F, centerY - size * 0.30F);
-            nvg.lineTo(centerX - size * 0.36F, centerY + size * 0.30F);
-            nvg.lineTo(centerX + size * 0.06F, centerY);
+            nvg.moveTo(centerX + size * 0.06F, centerY - size * 0.30F);
+            nvg.lineTo(centerX + size * 0.06F, centerY + size * 0.30F);
+            nvg.lineTo(centerX - size * 0.36F, centerY);
             nvg.closePath();
             nvg.fillPath(color);
         }
@@ -228,9 +228,9 @@ public enum PhiIcons implements PhiIcon {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
             nvg.beginPath();
-            nvg.moveTo(centerX + size * 0.36F, centerY - size * 0.30F);
-            nvg.lineTo(centerX + size * 0.36F, centerY + size * 0.30F);
-            nvg.lineTo(centerX - size * 0.06F, centerY);
+            nvg.moveTo(centerX - size * 0.06F, centerY - size * 0.30F);
+            nvg.lineTo(centerX - size * 0.06F, centerY + size * 0.30F);
+            nvg.lineTo(centerX + size * 0.36F, centerY);
             nvg.closePath();
             nvg.fillPath(color);
 
@@ -288,12 +288,26 @@ public enum PhiIcons implements PhiIcon {
     FAVORITE_FILLED {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            // Fill the star as a fan of convex triangles. The trimmed renderer can reduce a concave
+            // polygon to its bounding box; ten triangles preserve the exact same five-point shape.
             float outer = size * 0.46F;
-
-            nvg.beginPath();
-            starPoints(nvg, centerX, centerY, outer, outer * 0.40F);
-            nvg.closePath();
-            nvg.fillPath(color);
+            float inner = outer * 0.40F;
+            for (int i = 0; i < 10; i++) {
+                double angleA = -Math.PI / 2.0D + i * Math.PI / 5.0D;
+                double angleB = -Math.PI / 2.0D + (i + 1) * Math.PI / 5.0D;
+                float radiusA = (i % 2 == 0) ? outer : inner;
+                float radiusB = (i % 2 == 0) ? inner : outer;
+                float ax = centerX + (float) Math.cos(angleA) * radiusA;
+                float ay = centerY + (float) Math.sin(angleA) * radiusA;
+                float bx = centerX + (float) Math.cos(angleB) * radiusB;
+                float by = centerY + (float) Math.sin(angleB) * radiusB;
+                nvg.beginPath();
+                nvg.moveTo(centerX, centerY);
+                nvg.lineTo(ax, ay);
+                nvg.lineTo(bx, by);
+                nvg.closePath();
+                nvg.fillPath(color);
+            }
         }
     },
 
@@ -381,14 +395,22 @@ public enum PhiIcons implements PhiIcon {
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
             float w = Math.max(1.0F, size * 0.09F);
 
-            // The speaker: a small box at the left and the cone that opens to the right.
+            // The speaker: an upright box plus two convex triangles for the cone. Splitting the
+            // concave outline keeps the small icon from collapsing into a solid rectangle.
+            nvg.drawRect(centerX - size * 0.42F, centerY - size * 0.13F,
+                    size * 0.18F, size * 0.26F, color);
+
             nvg.beginPath();
-            nvg.moveTo(centerX - size * 0.42F, centerY - size * 0.13F);
-            nvg.lineTo(centerX - size * 0.24F, centerY - size * 0.13F);
+            nvg.moveTo(centerX - size * 0.24F, centerY - size * 0.13F);
             nvg.lineTo(centerX - size * 0.02F, centerY - size * 0.34F);
             nvg.lineTo(centerX - size * 0.02F, centerY + size * 0.34F);
+            nvg.closePath();
+            nvg.fillPath(color);
+
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.24F, centerY - size * 0.13F);
+            nvg.lineTo(centerX - size * 0.02F, centerY + size * 0.34F);
             nvg.lineTo(centerX - size * 0.24F, centerY + size * 0.13F);
-            nvg.lineTo(centerX - size * 0.42F, centerY + size * 0.13F);
             nvg.closePath();
             nvg.fillPath(color);
 

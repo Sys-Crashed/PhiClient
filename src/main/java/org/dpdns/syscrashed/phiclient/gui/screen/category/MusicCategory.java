@@ -398,6 +398,8 @@ public class MusicCategory extends PhiCategory {
         }
 
         if (this.overlayVisible || this.overlayVisibility > 0.001F) {
+            drawSongListBackdrop(nvg, this.songList.getX(), this.songList.getY(),
+                    this.songList.getWidth(), this.songList.getHeight(), this.overlayVisibility);
             drawOverlayTransition(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
         }
 
@@ -407,6 +409,31 @@ public class MusicCategory extends PhiCategory {
         }
 
         drawSongTooltip(nvg, layout, partialTicks);
+    }
+
+    /**
+     * Covers the visible song rows with their exact parallelogram shapes before an overlay opens.
+     * A single large slanted rectangle cannot cover the staircase formed by the individual rows:
+     * their left covers and right controls would otherwise peek out around the overlay.
+     */
+    private void drawSongListBackdrop(NanoVGManager nvg, float listX, float listTop, float listWidth,
+                                      float listHeight, float visibility) {
+        float value = Math.max(0.0F, Math.min(1.0F, visibility));
+        float inverse = 1.0F - value;
+        float eased = 1.0F - inverse * inverse * inverse;
+        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
+
+        nvg.save();
+        nvg.setGlobalAlpha(eased);
+        nvg.scissor(listX - 1.0F, listTop, listWidth + 2.0F + listHeight * 0.30F, listHeight);
+        for (PhiSongCard card : this.cards) {
+            if (card.getY() + card.getHeight() < listTop || card.getY() > listTop + listHeight) {
+                continue;
+            }
+            nvg.drawSkewRect(card.getX(), card.getY(), card.getWidth(), card.getHeight(), radius,
+                    PhiTheme.level2());
+        }
+        nvg.restore();
     }
 
     /**
@@ -440,7 +467,8 @@ public class MusicCategory extends PhiCategory {
         float deltaMs = partialTicks * 50.0F;
         PhiSongCard hovered = null;
 
-        if (!this.overlayVisible && !this.confirmVisible) {
+        if (!this.overlayVisible && !this.confirmVisible
+                && this.overlayVisibility <= 0.001F && this.confirmVisibility <= 0.001F) {
             for (PhiSongCard card : this.cards) {
                 if (card.isHovered()) {
                     hovered = card;

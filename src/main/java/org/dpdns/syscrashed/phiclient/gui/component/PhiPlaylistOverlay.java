@@ -234,8 +234,11 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
         // The close icon sits at the right end of the title row.
         this.closeSize = titleSize;
-        this.closeX = contentRight - this.closeSize;
         this.closeY = this.y + padding * 0.8F;
+        // The title row belongs to the slanted panel: align its right action with the right edge at
+        // the row's own height, not with the bottom-right content corner far to its left.
+        this.closeX = PhiSkew.rightEdgeAt(this.x, this.width, this.y, this.height,
+                this.closeY + this.closeSize * 0.5F) - padding - this.closeSize;
 
         // The delete button shares the title row, so the name field can use the full width.
         this.deleteX = 0.0F;

@@ -69,8 +69,9 @@ public enum PhiChangeLogType {
      */
     public int getTextColor() {
         if (this == ADDED) {
-            // The accent color is bright, so it needs a dark text.
-            return 0xFF101418;
+            // Accent and level0 sit at opposite ends of the palette in both themes: the dark accent
+            // of the light theme needs white text, the bright accent of the dark theme needs dark text.
+            return PhiTheme.level0();
         }
 
         return PhiTheme.textPrimary();
