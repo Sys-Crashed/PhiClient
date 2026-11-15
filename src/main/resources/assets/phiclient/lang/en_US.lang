@@ -59,7 +59,7 @@ music.tracks=%d tracks
 settings.theme.title=Theme
 settings.theme.desc=Switch between the dark and the light palette
 settings.language.title=Language
-settings.language.desc=Drop down selector
+settings.language.desc=Switch the interface language
 
 # HUD page
 hud.editor.title=HUD editor

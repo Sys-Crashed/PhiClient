@@ -19,6 +19,8 @@ import org.dpdns.syscrashed.phiclient.gui.screen.category.PhiCategory;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.SettingsCategory;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.widget.PhiToast;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
+import org.dpdns.syscrashed.phiclient.i18n.PhiLanguage;
 import org.dpdns.syscrashed.phiclient.utils.animation.Animation;
 import org.dpdns.syscrashed.phiclient.utils.animation.Direction;
 import org.dpdns.syscrashed.phiclient.utils.animation.EaseOutCubic;
@@ -128,6 +130,22 @@ public class GuiPhiHub extends GuiScreen {
             @Override
             public void onCategorySelected(PhiCategory category) {
                 selectCategory(category);
+            }
+        });
+
+        // A language switch invalidates the layout size markers, so the next frame rebuilds every
+        // page (which refreshes all text caches), clears the old-language toast and replays the
+        // slide-up entrance of the current page as the refresh transition.
+        PhiI18n.addListener(new PhiI18n.LanguageListener() {
+            @Override
+            public void onLanguageChanged(PhiLanguage language) {
+                GuiPhiHub.this.laidOutWidth = -1.0F;
+                GuiPhiHub.this.laidOutHeight = -1.0F;
+
+                PhiClient.getInstance().getGuiManager().getToast().hide();
+
+                GuiPhiHub.this.categoryTransition.reset();
+                GuiPhiHub.this.categoryTransition.setDirection(Direction.FORWARDS);
             }
         });
     }

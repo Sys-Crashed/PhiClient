@@ -58,7 +58,7 @@ music.tracks=%d 曲
 settings.theme.title=テーマ
 settings.theme.desc=ダークとライトのパレットを切り替え
 settings.language.title=言語
-settings.language.desc=ドロップダウンセレクター
+settings.language.desc=インターフェースの言語を切り替え
 
 # HUD page
 hud.editor.title=HUD エディター

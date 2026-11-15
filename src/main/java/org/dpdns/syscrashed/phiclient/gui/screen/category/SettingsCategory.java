@@ -1,6 +1,7 @@
 package org.dpdns.syscrashed.phiclient.gui.screen.category;
 
 import org.dpdns.syscrashed.phiclient.gui.component.PhiCard;
+import org.dpdns.syscrashed.phiclient.gui.component.PhiLanguageSelector;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiToggle;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
@@ -29,7 +30,12 @@ public class SettingsCategory extends PhiCategory {
     /** Height of the theme switch. */
     private static final float TOGGLE_HEIGHT = 20.0F;
 
+    /** Width of the language selector (three segments plus the gaps). */
+    private static final float LANGUAGE_WIDTH = 216.0F;
+
     private final PhiToggle themeToggle;
+
+    private final PhiLanguageSelector languageSelector = new PhiLanguageSelector(0.0F, 0.0F, 0.0F, 0.0F);
 
     /**
      * Creates the settings page.
@@ -81,22 +87,36 @@ public class SettingsCategory extends PhiCategory {
 
         this.components.add(themeCard);
 
-        // Language row.
+        // Language row: a card with the three-segment language selector on its right side. The
+        // selector shares the content column of the card, the same right edge as the theme switch.
         top += cardHeight + spacing;
         cardBottom = top + cardHeight;
         cardX = contentLeft(layout, cardBottom);
         cardWidth = contentRight(layout, cardBottom) - cardX;
 
-        this.components.add(new PhiCard(cardX, top, cardWidth, cardHeight, uiScale,
-                PhiI18n.get("settings.language.title"), PhiI18n.get("settings.language.desc"),
-                PhiI18n.get("status.planned")));
+        float selectorWidth = LANGUAGE_WIDTH * uiScale;
+        float selectorHeight = TOGGLE_HEIGHT * uiScale;
+        float selectorY = top + (cardHeight - selectorHeight) * 0.5F;
+        float selectorX = PhiSkew.contentRight(cardX, cardWidth, cardPadding) - selectorWidth;
+
+        this.languageSelector.setX(selectorX);
+        this.languageSelector.setY(selectorY);
+        this.languageSelector.setWidth(selectorWidth);
+        this.languageSelector.setHeight(selectorHeight);
+
+        PhiCard languageCard = new PhiCard(cardX, top, cardWidth, cardHeight, uiScale,
+                PhiI18n.get("settings.language.title"), PhiI18n.get("settings.language.desc"), null);
+        languageCard.setTrailing(this.languageSelector);
+
+        this.components.add(languageCard);
     }
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-        // The theme switch is not part of the component list (the card draws it), so it has to receive
-        // the clicks on its own.
+        // The theme switch and the language selector are not part of the component list (the cards
+        // draw them), so they have to receive the clicks on their own.
         this.themeToggle.mouseClicked(mouseX, mouseY, mouseButton);
+        this.languageSelector.mouseClicked(mouseX, mouseY, mouseButton);
 
         super.mouseClicked(mouseX, mouseY, mouseButton);
     }
