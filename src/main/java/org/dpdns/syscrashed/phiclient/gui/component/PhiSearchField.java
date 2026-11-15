@@ -1,6 +1,7 @@
 package org.dpdns.syscrashed.phiclient.gui.component;
 
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
+import org.dpdns.syscrashed.phiclient.gui.input.PhiImeBridge;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
@@ -151,15 +152,24 @@ public class PhiSearchField extends PhiComponent {
         if (this.text.length() == 0 && !this.focused) {
             nvg.drawText(nvg.limitText(this.placeholder, bodySize, Fonts.REGULAR, textWidth),
                     contentLeft, textY, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
+            PhiImeBridge.setCaretGuiPosition(-1, -1);
         } else {
             String shown = nvg.limitText(this.text.toString(), bodySize, Fonts.REGULAR, textWidth);
             int color = this.focused ? PhiTheme.accent() : PhiTheme.textPrimary();
             nvg.drawText(shown, contentLeft, textY, color, bodySize, Fonts.REGULAR);
 
+            float caretX = contentLeft + nvg.textWidth(shown, bodySize, Fonts.REGULAR) + 1.0F;
+
             // The caret blinks at the end of the text while the field is focused.
             if (this.focused && (System.currentTimeMillis() / 500L) % 2L == 0L) {
-                float caretX = contentLeft + nvg.textWidth(shown, bodySize, Fonts.REGULAR) + 1.0F;
                 nvg.drawRect(caretX, textY, Math.max(1.0F, this.uiScale), bodySize, PhiTheme.accent());
+            }
+
+            // Report the caret so the IME candidate window follows it; cleared when the field blurs.
+            if (this.focused) {
+                PhiImeBridge.setCaretGuiPosition((int) caretX, (int) (textY + bodySize));
+            } else {
+                PhiImeBridge.setCaretGuiPosition(-1, -1);
             }
         }
 

@@ -79,6 +79,12 @@ dependencies {
     // 也不会触发 org.lwjgl.opengl 的 security seal 冲突。
     // 这两个 jar 不 embed 进产物 jar（reobf 会去碰里头的类），而是作为独立库随发布包一起分发。
     compile files('libs/lwjgl-phi.jar', 'libs/lwjgl-phi-natives.jar')
+
+    // ---- Windows IME 桥（中文输入）----
+    // MC 1.8.9 的 LWJGL 2 完全不处理 WM_IME_* 消息，中文组合字符永远进不了 Keyboard 事件流；
+    // PhiImeBridge 通过 JNA 轮询 Imm32 把结果串注入输入框。3.4.0 已在本机 Gradle 缓存（离线可构建），
+    // 且 jna.jar 满足 releaseLibraries 的收集条件（在 Gradle 缓存里），发布时会自动进 libraries/。
+    compile 'net.java.dev.jna:jna:3.4.0'
 }
 
 // ---- 离线可构建（重要）----

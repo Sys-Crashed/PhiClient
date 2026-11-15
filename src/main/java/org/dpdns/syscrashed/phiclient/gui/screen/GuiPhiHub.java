@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.PhiGuiManager;
+import org.dpdns.syscrashed.phiclient.gui.input.PhiImeBridge;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
@@ -28,6 +29,7 @@ import org.dpdns.syscrashed.phiclient.utils.animation.Direction;
 import org.dpdns.syscrashed.phiclient.utils.animation.EaseOutCubic;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.Display;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
@@ -481,6 +483,37 @@ public class GuiPhiHub extends GuiScreen {
                 }
             }
         }
+
+        // IME: LWJGL 2 in 1.8.9 never delivers WM_IME_* characters, so CJK text committed by the
+        // input method is polled from Imm32 and fed through the regular keyTyped path.
+        this.dispatchImeInput();
+    }
+
+    /**
+     * Moves the IME composition window to the caret of the focused text field and injects the text
+     * the input method committed since the last poll into the focused field.
+     */
+    private void dispatchImeInput() {
+        int caretGuiX = PhiImeBridge.getCaretGuiX();
+        if (caretGuiX >= 0) {
+            // GUI coordinates scale to pixels with displayWidth / width (the hub is scaled by MC).
+            double scaleX = (double) this.mc.displayWidth / this.width;
+            double scaleY = (double) this.mc.displayHeight / this.height;
+            PhiImeBridge.setCaretScreenPosition(
+                    Display.getX() + (int) Math.round(caretGuiX * scaleX),
+                    Display.getY() + (int) Math.round(PhiImeBridge.getCaretGuiY() * scaleY));
+        }
+
+        String committed = PhiImeBridge.pollCommittedText();
+        if (committed == null || committed.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < committed.length(); i++) {
+            char c = committed.charAt(i);
+            if (c >= 32 && c != 127) {
+                this.keyTyped(c, 0);
+            }
+        }
     }
 
     /** The game keeps running normally (does not pause) while this screen is open. */
@@ -497,6 +530,10 @@ public class GuiPhiHub extends GuiScreen {
 
         // The music keeps playing after the hub closes; only the drop import is disabled.
         PhiMusicManager.get().setDropEnabled(false);
+
+        // Drop the caret report so the IME candidate window is not repositioned for a closed hub.
+        PhiImeBridge.setCaretGuiPosition(-1, -1);
+        PhiImeBridge.setCaretScreenPosition(Integer.MIN_VALUE, Integer.MIN_VALUE);
     }
 
     /**
