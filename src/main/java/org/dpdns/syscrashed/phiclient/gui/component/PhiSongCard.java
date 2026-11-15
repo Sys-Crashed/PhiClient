@@ -83,6 +83,9 @@ public class PhiSongCard extends PhiComponent {
     private float deleteHover;
     private long lastFrame = System.currentTimeMillis();
 
+    /** The control that owns the current press animation: 1 play, 2 favorite, 3 add, 4 delete. */
+    private int pressedControl;
+
     /**
      * @param track   the track of the card.
      * @param x       the left x of the bounding box.
@@ -132,6 +135,7 @@ public class PhiSongCard extends PhiComponent {
         long now = System.currentTimeMillis();
         float deltaMs = Math.min(100.0F, now - this.lastFrame);
         this.lastFrame = now;
+        float pressScale = getPressScale();
         this.favoriteAmount = this.favorite
                 ? Math.min(1.0F, this.favoriteAmount + deltaMs / 160.0F)
                 : Math.max(0.0F, this.favoriteAmount - deltaMs / 160.0F);
@@ -159,7 +163,8 @@ public class PhiSongCard extends PhiComponent {
         float coverY = this.y + (this.height - coverSize) * 0.5F;
         nvg.drawRoundedRect(contentLeft, coverY, coverSize, coverSize, radius * 0.6F, PhiTheme.level2());
         PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F, coverY + coverSize * 0.5F,
-                coverSize * 0.5F, this.playing ? PhiTheme.accent() : PhiTheme.textSecondary());
+                coverSize * 0.5F * (this.pressedControl == 1 ? pressScale : 1.0F),
+                this.playing ? PhiTheme.accent() : PhiTheme.textSecondary());
 
         // The upright controls at the right end: delete, add-to-playlist and the favorite star.
         this.controlSize = this.height * 0.42F;
@@ -199,12 +204,14 @@ public class PhiSongCard extends PhiComponent {
 
         // Upright controls: each one eases its own color and size independently of the row.
         float centerY = controlY + this.controlSize * 0.5F;
+        float addPress = this.pressedControl == 3 ? pressScale : 1.0F;
         PhiIcons.PLUS.draw(nvg, this.addX + this.controlSize * 0.5F, centerY,
-                this.controlSize * 0.72F * (1.0F + 0.10F * this.addHover),
+                this.controlSize * 0.72F * (1.0F + 0.10F * this.addHover) * addPress,
                 PhiTheme.mix(PhiTheme.textPrimary(), PhiTheme.accent(), this.addHover));
 
         float favoriteCenterX = this.favoriteX + this.controlSize * 0.5F;
-        float favoriteSize = this.controlSize * 0.86F * (1.0F + 0.10F * this.favoriteHover);
+        float favoritePress = this.pressedControl == 2 ? pressScale : 1.0F;
+        float favoriteSize = this.controlSize * 0.86F * (1.0F + 0.10F * this.favoriteHover) * favoritePress;
         int favoriteOutline = PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.accent(),
                 Math.max(this.favoriteHover, this.favoriteAmount));
         PhiIcons.FAVORITE.draw(nvg, favoriteCenterX, centerY, favoriteSize, favoriteOutline);
@@ -213,8 +220,9 @@ public class PhiSongCard extends PhiComponent {
                     PhiTheme.withAlpha(PhiTheme.accent(), this.favoriteAmount));
         }
 
+        float deletePress = this.pressedControl == 4 ? pressScale : 1.0F;
         PhiIcons.DELETE.draw(nvg, this.deleteX + this.controlSize * 0.5F, centerY,
-                this.controlSize * 0.72F * (1.0F + 0.10F * this.deleteHover),
+                this.controlSize * 0.72F * (1.0F + 0.10F * this.deleteHover) * deletePress,
                 PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), this.deleteHover));
     }
 
@@ -226,22 +234,26 @@ public class PhiSongCard extends PhiComponent {
 
         // The upright controls use axis aligned boxes (they are not part of the skew family).
         if (insideBox(mouseX, mouseY, this.favoriteX, this.favoriteY, this.controlSize)) {
+            this.pressedControl = 2;
             beginPress();
             this.listener.onFavorite(this);
             return;
         }
         if (insideBox(mouseX, mouseY, this.addX, this.favoriteY, this.controlSize)) {
+            this.pressedControl = 3;
             beginPress();
             this.listener.onAddToPlaylist(this);
             return;
         }
         if (insideBox(mouseX, mouseY, this.deleteX, this.favoriteY, this.controlSize)) {
+            this.pressedControl = 4;
             beginPress();
             this.listener.onDelete(this);
             return;
         }
 
         if (isInside(mouseX, mouseY)) {
+            this.pressedControl = 1;
             beginPress();
             this.listener.onPlay(this);
         }

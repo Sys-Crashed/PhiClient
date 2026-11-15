@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.dpdns.syscrashed.phiclient.gui.component.PhiComponent;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiConfirmOverlay;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiIconButton;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiMusicTabBar;
@@ -109,6 +110,11 @@ public class MusicCategory extends PhiCategory {
 
     /** True while the playlist overlay is open. */
     private boolean overlayVisible;
+
+    /** Animated visibility of the two overlays (they keep drawing while fading out). */
+    private float overlayVisibility;
+    private float confirmVisibility;
+    private long lastFrame = System.currentTimeMillis();
 
     /** The playlist the management overlay acts on. */
     private String manageTarget = "";
@@ -346,6 +352,16 @@ public class MusicCategory extends PhiCategory {
     public void draw(NanoVGManager nvg, PhiHubLayout layout, int mouseX, int mouseY, float partialTicks) {
         checkImportConflicts();
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        this.overlayVisibility = this.overlayVisible
+                ? Math.min(1.0F, this.overlayVisibility + deltaMs / 160.0F)
+                : Math.max(0.0F, this.overlayVisibility - deltaMs / 140.0F);
+        this.confirmVisibility = this.confirmVisible
+                ? Math.min(1.0F, this.confirmVisibility + deltaMs / 160.0F)
+                : Math.max(0.0F, this.confirmVisibility - deltaMs / 140.0F);
+
         // Sync the live state into the widgets.
         this.tabBar.setSelection(this.manager.getView(), this.manager.getPlaylistName());
         this.tabBar.setPlaylists(this.manager.getPlaylists());
@@ -381,16 +397,39 @@ public class MusicCategory extends PhiCategory {
                     PhiTheme.textSecondary(), textSize, Fonts.REGULAR);
         }
 
-        if (this.overlayVisible) {
-            this.overlay.draw(nvg, mouseX, mouseY, partialTicks);
+        if (this.overlayVisible || this.overlayVisibility > 0.001F) {
+            drawOverlayTransition(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
         }
 
         // The confirmation panel is the topmost layer of the page.
-        if (this.confirmVisible) {
-            this.confirmOverlay.draw(nvg, mouseX, mouseY, partialTicks);
+        if (this.confirmVisible || this.confirmVisibility > 0.001F) {
+            drawOverlayTransition(nvg, this.confirmOverlay, this.confirmVisibility, mouseX, mouseY, partialTicks);
         }
 
         drawSongTooltip(nvg, layout, partialTicks);
+    }
+
+    /**
+     * Draws an overlay with a short fade and a subtle scale around its own centroid. Input still
+     * follows the final geometry; the 3% scale never changes the layout or the reading order.
+     */
+    private static void drawOverlayTransition(NanoVGManager nvg, PhiComponent overlay, float visibility,
+                                              int mouseX, int mouseY, float partialTicks) {
+        float value = Math.max(0.0F, Math.min(1.0F, visibility));
+        float inverse = 1.0F - value;
+        float eased = 1.0F - inverse * inverse * inverse;
+        float scale = 0.97F + 0.03F * eased;
+        float centerX = overlay.getX() + overlay.getWidth() * 0.5F
+                + PhiSkew.offset(overlay.getHeight()) * 0.5F;
+        float centerY = overlay.getY() + overlay.getHeight() * 0.5F;
+
+        nvg.save();
+        nvg.setGlobalAlpha(eased);
+        nvg.translate(centerX, centerY);
+        nvg.scale(scale, scale);
+        nvg.translate(-centerX, -centerY);
+        overlay.draw(nvg, mouseX, mouseY, partialTicks);
+        nvg.restore();
     }
 
     /**

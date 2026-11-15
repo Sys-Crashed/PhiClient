@@ -10,6 +10,8 @@ import org.dpdns.syscrashed.phiclient.gui.music.PhiTrack;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
+import org.dpdns.syscrashed.phiclient.gui.widget.PhiScrollState;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
@@ -82,6 +84,8 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         private String trackId = "";
         private String title = "";
         private String playlistName = "";
+        private float hoverAmount;
+        private final PhiSheen sheen = new PhiSheen();
     }
 
     private final float uiScale;
@@ -96,7 +100,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
     private final List<Row> rows = new ArrayList<Row>();
 
-    private float scroll;
+    private final PhiScrollState scrollState = new PhiScrollState();
 
     /** Geometry of the last frame (the hit tests reuse it). */
     private float listTop;
@@ -107,6 +111,11 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     private float closeX;
     private float closeY;
     private float closeSize;
+
+    private final PhiSheen deleteSheen = new PhiSheen();
+    private float deleteHover;
+    private float closeHover;
+    private long lastFrame = System.currentTimeMillis();
 
     /**
      * @param x       the left x of the bounding box.
@@ -151,7 +160,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.mode = Mode.MANAGE;
         this.playlistName = name;
         this.nameField.setText(name);
-        this.scroll = 0.0F;
+        this.scrollState.reset();
         rebuildRows(members);
     }
 
@@ -163,7 +172,7 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
     public void showPick(List<String> targets) {
         this.mode = Mode.PICK;
         this.nameField.setText("");
-        this.scroll = 0.0F;
+        this.scrollState.reset();
         this.rows.clear();
         for (String target : targets) {
             Row row = new Row();
@@ -202,14 +211,16 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        float maxScroll = Math.max(0.0F, this.rows.size() * this.rowHeight
-                - (this.y + this.height - this.listTop - 8.0F * this.uiScale));
-        this.scroll = Math.max(0.0F, Math.min(maxScroll, this.scroll - notches * this.rowHeight));
+        this.scrollState.scrollBy(notches * this.rowHeight);
         return true;
     }
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
         float padding = 16.0F * this.uiScale;
         float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
@@ -225,27 +236,41 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.closeSize = titleSize;
         this.closeX = contentRight - this.closeSize;
         this.closeY = this.y + padding * 0.8F;
-        drawCross(nvg, this.closeX + this.closeSize * 0.5F, this.closeY + this.closeSize * 0.5F,
-                this.closeSize * 0.5F, PhiTheme.textSecondary());
 
         // The delete button shares the title row, so the name field can use the full width.
         this.deleteX = 0.0F;
         this.deleteWidth = 0.0F;
         float titleRight = this.closeX - padding * 0.6F;
-
+        String deleteLabel = PhiI18n.get("music.playlist.delete");
         if (this.mode == Mode.MANAGE) {
-            String deleteLabel = PhiI18n.get("music.playlist.delete");
             this.deleteWidth = nvg.textWidth(deleteLabel, bodySize, Fonts.REGULAR) + padding * 1.2F
                     + PhiSkew.offset(buttonHeight);
             this.deleteX = titleRight - this.deleteWidth;
             titleRight = this.deleteX - padding * 0.5F;
+        }
 
+        boolean closeHovered = insideBox(mouseX, mouseY, this.closeX, this.closeY, this.closeSize);
+        this.closeHover = approach(this.closeHover, closeHovered, deltaMs);
+        boolean deleteHovered = this.mode == Mode.MANAGE && PhiSkew.contains(mouseX, mouseY,
+                this.deleteX, this.closeY, this.deleteWidth, buttonHeight);
+        this.deleteHover = approach(this.deleteHover, deleteHovered, deltaMs);
+        this.deleteSheen.update(deleteHovered);
+
+        if (this.mode == Mode.MANAGE) {
+            float buttonRadius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
             nvg.drawSkewRect(this.deleteX, this.closeY, this.deleteWidth, buttonHeight,
-                    PhiMetrics.NAV_ITEM_RADIUS * this.uiScale, PhiTheme.level3());
+                    buttonRadius, PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), this.deleteHover));
+            this.deleteSheen.drawSkew(nvg, this.deleteX, this.closeY, this.deleteWidth, buttonHeight,
+                    buttonRadius, this.deleteHover, PhiTheme.sheen());
             nvg.drawText(deleteLabel, PhiSkew.contentLeft(this.deleteX, buttonHeight, padding * 0.6F),
                     this.closeY + (buttonHeight - bodySize) * 0.5F,
-                    PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
+                    PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.danger(), this.deleteHover),
+                    bodySize, Fonts.REGULAR);
         }
+
+        drawCross(nvg, this.closeX + this.closeSize * 0.5F, this.closeY + this.closeSize * 0.5F,
+                this.closeSize * (0.5F + 0.05F * this.closeHover),
+                PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), this.closeHover));
 
         // The title takes the rest of the title row.
         String title = this.mode == Mode.MANAGE
@@ -272,16 +297,19 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         this.listTop = this.buttonY + (this.mode == Mode.MANAGE
                 ? fieldHeight + padding * 0.6F : padding * 0.4F);
         float listBottom = this.y + this.height - padding * 0.6F;
+        this.scrollState.setContentSize(this.rows.size() * this.rowHeight,
+                Math.max(0.0F, listBottom - this.listTop));
+        this.scrollState.update(deltaMs);
 
         nvg.save();
         nvg.scissor(this.x, this.listTop, this.width, Math.max(0.0F, listBottom - this.listTop));
 
         for (int i = 0; i < this.rows.size(); i++) {
-            float rowY = this.listTop + i * this.rowHeight - this.scroll;
+            float rowY = this.listTop + i * this.rowHeight - this.scrollState.getOffset();
             if (rowY + this.rowHeight < this.listTop || rowY > listBottom) {
                 continue;
             }
-            drawRow(nvg, this.rows.get(i), rowY, bodySize, mouseX, mouseY);
+            drawRow(nvg, this.rows.get(i), rowY, bodySize, mouseX, mouseY, deltaMs);
         }
 
         nvg.restore();
@@ -291,27 +319,32 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
      * Draws one row of the list. Every row starts at the slanted left edge of the panel, so the
      * entries run along the diagonal of the shape - and they slide along it while the list scrolls.
      */
-    private void drawRow(NanoVGManager nvg, Row row, float rowY, float bodySize, int mouseX, int mouseY) {
+    private void drawRow(NanoVGManager nvg, Row row, float rowY, float bodySize, int mouseX, int mouseY,
+                         float deltaMs) {
         float padding = 16.0F * this.uiScale;
         float rowLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowY) + padding;
         float rowWidth = this.width - padding * 2.0F;
 
         boolean hovered = PhiSkew.contains(mouseX, mouseY, rowLeft, rowY, rowWidth, this.rowHeight);
-        if (hovered) {
-            nvg.drawSkewRect(rowLeft, rowY, rowWidth, this.rowHeight,
-                    PhiMetrics.NAV_ITEM_RADIUS * this.uiScale, PhiTheme.level3());
+        row.hoverAmount = approach(row.hoverAmount, hovered, deltaMs);
+        row.sheen.update(hovered);
+        float radius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
+        if (row.hoverAmount > 0.001F) {
+            nvg.drawSkewRect(rowLeft, rowY, rowWidth, this.rowHeight, radius,
+                    PhiTheme.withAlpha(PhiTheme.level3(), row.hoverAmount));
         }
+        row.sheen.drawSkew(nvg, rowLeft, rowY, rowWidth, this.rowHeight, radius,
+                row.hoverAmount, PhiTheme.sheen());
 
+        int iconColor = PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), row.hoverAmount);
         float textRight = rowLeft + rowWidth;
         if (this.mode == Mode.MANAGE) {
             // Move-up, move-down and remove icons at the right end of the row.
             float iconSize = this.rowHeight * 0.5F;
             float centerY = rowY + this.rowHeight * 0.5F;
-            drawCross(nvg, textRight - iconSize * 0.5F, centerY, iconSize * 0.42F, PhiTheme.textSecondary());
-            drawTriangle(nvg, textRight - iconSize * 1.8F, centerY, iconSize * 0.42F, false,
-                    PhiTheme.textSecondary());
-            drawTriangle(nvg, textRight - iconSize * 3.1F, centerY, iconSize * 0.42F, true,
-                    PhiTheme.textSecondary());
+            drawCross(nvg, textRight - iconSize * 0.5F, centerY, iconSize * 0.42F, iconColor);
+            drawTriangle(nvg, textRight - iconSize * 1.8F, centerY, iconSize * 0.42F, false, iconColor);
+            drawTriangle(nvg, textRight - iconSize * 3.1F, centerY, iconSize * 0.42F, true, iconColor);
             textRight = textRight - iconSize * 3.6F;
         }
 
@@ -319,6 +352,15 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
                         Math.max(0.0F, textRight - rowLeft)),
                 rowLeft, rowY + (this.rowHeight - bodySize) * 0.5F,
                 PhiTheme.textPrimary(), bodySize, Fonts.REGULAR);
+    }
+
+    /**
+     * Moves a hover amount toward its target (120 ms in, 300 ms out).
+     */
+    private static float approach(float current, boolean hovered, float deltaMs) {
+        return hovered
+                ? Math.min(1.0F, current + deltaMs / 120.0F)
+                : Math.max(0.0F, current - deltaMs / 300.0F);
     }
 
     @Override
@@ -353,18 +395,19 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (mouseY < this.listTop) {
             return;
         }
-        int index = (int) ((mouseY - this.listTop + this.scroll) / this.rowHeight);
+        int index = (int) ((mouseY - this.listTop + this.scrollState.getOffset()) / this.rowHeight);
         if (index < 0 || index >= this.rows.size()) {
             return;
         }
         Row row = this.rows.get(index);
+        row.sheen.restart();
 
         if (this.mode == Mode.PICK) {
             this.listener.onPick(row.playlistName);
             return;
         }
 
-        float rowY = this.listTop + index * this.rowHeight - this.scroll;
+        float rowY = this.listTop + index * this.rowHeight - this.scrollState.getOffset();
         float padding = 16.0F * this.uiScale;
         float rowLeft = PhiSkew.leftEdgeAt(this.x, this.y, this.height, rowY) + padding;
         float rowWidth = this.width - padding * 2.0F;

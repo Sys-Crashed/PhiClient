@@ -5,6 +5,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.gui.util.PhiSheen;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.input.Keyboard;
 
@@ -46,6 +47,12 @@ public class PhiConfirmOverlay extends PhiComponent {
     private String confirmLabel = "";
 
     private boolean dangerous;
+
+    private final PhiSheen cancelSheen = new PhiSheen();
+    private final PhiSheen confirmSheen = new PhiSheen();
+    private float cancelHover;
+    private float confirmHover;
+    private long lastFrame = System.currentTimeMillis();
 
     /** Geometry of the last frame (the hit tests reuse it). */
     private float buttonY;
@@ -122,18 +129,46 @@ public class PhiConfirmOverlay extends PhiComponent {
                 + PhiSkew.offset(this.buttonHeight);
         this.cancelX = this.confirmX - this.cancelWidth - padding * 0.5F;
 
+        long now = System.currentTimeMillis();
+        float deltaMs = Math.min(100.0F, now - this.lastFrame);
+        this.lastFrame = now;
+        boolean cancelHovered = PhiSkew.contains(mouseX, mouseY, this.cancelX, this.buttonY,
+                this.cancelWidth, this.buttonHeight);
+        boolean confirmHovered = PhiSkew.contains(mouseX, mouseY, this.confirmX, this.buttonY,
+                this.confirmWidth, this.buttonHeight);
+        this.cancelHover = approach(this.cancelHover, cancelHovered, deltaMs);
+        this.confirmHover = approach(this.confirmHover, confirmHovered, deltaMs);
+        this.cancelSheen.update(cancelHovered);
+        this.confirmSheen.update(confirmHovered);
+
+        float buttonRadius = PhiMetrics.NAV_ITEM_RADIUS * this.uiScale;
         nvg.drawSkewRect(this.cancelX, this.buttonY, this.cancelWidth, this.buttonHeight,
-                PhiMetrics.NAV_ITEM_RADIUS * this.uiScale, PhiTheme.level3());
+                buttonRadius, PhiTheme.mix(PhiTheme.level3(), PhiTheme.level4(), this.cancelHover));
+        this.cancelSheen.drawSkew(nvg, this.cancelX, this.buttonY, this.cancelWidth, this.buttonHeight,
+                buttonRadius, this.cancelHover, PhiTheme.sheen());
         nvg.drawText(cancelLabel, PhiSkew.contentLeft(this.cancelX, this.buttonHeight, padding * 0.7F),
                 this.buttonY + (this.buttonHeight - bodySize) * 0.5F,
-                PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
+                PhiTheme.mix(PhiTheme.textSecondary(), PhiTheme.textPrimary(), this.cancelHover),
+                bodySize, Fonts.REGULAR);
 
+        int confirmBase = this.dangerous ? PhiTheme.level3() : PhiTheme.level4();
+        int confirmHoveredColor = this.dangerous ? PhiTheme.level4() : PhiTheme.level5();
         nvg.drawSkewRect(this.confirmX, this.buttonY, this.confirmWidth, this.buttonHeight,
-                PhiMetrics.NAV_ITEM_RADIUS * this.uiScale,
-                this.dangerous ? PhiTheme.level3() : PhiTheme.level4());
+                buttonRadius, PhiTheme.mix(confirmBase, confirmHoveredColor, this.confirmHover));
+        this.confirmSheen.drawSkew(nvg, this.confirmX, this.buttonY, this.confirmWidth, this.buttonHeight,
+                buttonRadius, this.confirmHover, PhiTheme.sheen());
         nvg.drawText(this.confirmLabel, PhiSkew.contentLeft(this.confirmX, this.buttonHeight, padding * 0.7F),
                 this.buttonY + (this.buttonHeight - bodySize) * 0.5F,
                 this.dangerous ? PhiTheme.danger() : PhiTheme.accent(), bodySize, Fonts.REGULAR);
+    }
+
+    /**
+     * Moves a button hover amount toward its target (120 ms in, 300 ms out).
+     */
+    private static float approach(float current, boolean hovered, float deltaMs) {
+        return hovered
+                ? Math.min(1.0F, current + deltaMs / 120.0F)
+                : Math.max(0.0F, current - deltaMs / 300.0F);
     }
 
     @Override
@@ -149,10 +184,12 @@ public class PhiConfirmOverlay extends PhiComponent {
 
         if (mouseY >= this.buttonY && mouseY <= this.buttonY + this.buttonHeight) {
             if (mouseX >= this.confirmX && mouseX <= this.confirmX + this.confirmWidth) {
+                this.confirmSheen.restart();
                 this.listener.onConfirm();
                 return;
             }
             if (mouseX >= this.cancelX && mouseX <= this.cancelX + this.cancelWidth) {
+                this.cancelSheen.restart();
                 this.listener.onCancel();
                 return;
             }
