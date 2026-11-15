@@ -273,6 +273,201 @@ public enum PhiIcons implements PhiIcon {
 
             nvg.drawImage(image, centerX - size * 0.5F, centerY - size * 0.5F, size, size, 1.0F);
         }
+    },
+
+    /** Favorite - a five pointed star (filled). */
+    FAVORITE {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float outer = size * 0.46F;
+            float inner = outer * 0.42F;
+
+            nvg.beginPath();
+            for (int i = 0; i < 10; i++) {
+                double angle = -Math.PI / 2.0D + i * Math.PI / 5.0D;
+                float radius = (i % 2 == 0) ? outer : inner;
+                float px = centerX + (float) Math.cos(angle) * radius;
+                float py = centerY + (float) Math.sin(angle) * radius;
+                if (i == 0) {
+                    nvg.moveTo(px, py);
+                } else {
+                    nvg.lineTo(px, py);
+                }
+            }
+            nvg.closePath();
+            nvg.fillPath(color);
+        }
+    },
+
+    /** Shuffle - two crossing paths with arrow heads (pseudo random order). */
+    SHUFFLE {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+
+            // Upper path: left low to right high, then bends down.
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.42F, centerY - size * 0.22F);
+            nvg.lineTo(centerX - size * 0.12F, centerY - size * 0.22F);
+            nvg.lineTo(centerX + size * 0.12F, centerY + size * 0.22F);
+            nvg.lineTo(centerX + size * 0.30F, centerY + size * 0.22F);
+            nvg.strokePath(color, w);
+
+            // Lower path: left high to right low, then bends up.
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.42F, centerY + size * 0.22F);
+            nvg.lineTo(centerX - size * 0.12F, centerY + size * 0.22F);
+            nvg.lineTo(centerX + size * 0.12F, centerY - size * 0.22F);
+            nvg.lineTo(centerX + size * 0.30F, centerY - size * 0.22F);
+            nvg.strokePath(color, w);
+
+            // Arrow heads at the two right ends.
+            nvg.beginPath();
+            nvg.moveTo(centerX + size * 0.16F, centerY - size * 0.36F);
+            nvg.lineTo(centerX + size * 0.42F, centerY - size * 0.22F);
+            nvg.lineTo(centerX + size * 0.16F, centerY - size * 0.08F);
+            nvg.strokePath(color, w);
+
+            nvg.beginPath();
+            nvg.moveTo(centerX + size * 0.16F, centerY + size * 0.08F);
+            nvg.lineTo(centerX + size * 0.42F, centerY + size * 0.22F);
+            nvg.lineTo(centerX + size * 0.16F, centerY + size * 0.36F);
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Sequential loop - a rectangular cycle with an arrow head. */
+    REPEAT {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+            float halfW = size * 0.38F;
+            float halfH = size * 0.26F;
+
+            // The open rectangle (three sides).
+            nvg.beginPath();
+            nvg.moveTo(centerX + halfW, centerY - halfH);
+            nvg.lineTo(centerX - halfW, centerY - halfH);
+            nvg.lineTo(centerX - halfW, centerY + halfH);
+            nvg.lineTo(centerX + halfW, centerY + halfH);
+            nvg.strokePath(color, w);
+
+            // Right side up to the arrow.
+            nvg.drawLine(centerX + halfW, centerY + halfH, centerX + halfW, centerY - size * 0.06F, color, w);
+
+            // Arrow head pointing up.
+            nvg.beginPath();
+            nvg.moveTo(centerX + halfW - size * 0.14F, centerY - size * 0.06F);
+            nvg.lineTo(centerX + halfW, centerY - halfH - size * 0.06F);
+            nvg.lineTo(centerX + halfW + size * 0.14F, centerY - size * 0.06F);
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Single loop - the cycle of {@link #REPEAT} with a "1" bar in the middle. */
+    REPEAT_ONE {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            PhiIcons.REPEAT.draw(nvg, centerX, centerY, size, color);
+
+            // The small "1": a stem with a foot and a flag.
+            nvg.drawLine(centerX, centerY - size * 0.10F, centerX, centerY + size * 0.16F, color, size * 0.075F);
+            nvg.drawLine(centerX - size * 0.08F, centerY - size * 0.02F, centerX, centerY - size * 0.10F,
+                    color, size * 0.075F);
+        }
+    },
+
+    /** Volume - a speaker with two sound waves. */
+    VOLUME {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+
+            // Speaker body (filled trapezoid with the box at the left).
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.42F, centerY - size * 0.14F);
+            nvg.lineTo(centerX - size * 0.22F, centerY - size * 0.14F);
+            nvg.lineTo(centerX - size * 0.02F, centerY - size * 0.34F);
+            nvg.lineTo(centerX - size * 0.02F, centerY + size * 0.34F);
+            nvg.lineTo(centerX - size * 0.22F, centerY + size * 0.14F);
+            nvg.lineTo(centerX - size * 0.42F, centerY + size * 0.14F);
+            nvg.closePath();
+            nvg.fillPath(color);
+
+            // Sound waves.
+            nvg.beginPath();
+            nvg.arc(centerX + size * 0.06F, centerY, size * 0.18F,
+                    (float) (-Math.PI * 0.35D), (float) (Math.PI * 0.35D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+
+            nvg.beginPath();
+            nvg.arc(centerX + size * 0.06F, centerY, size * 0.32F,
+                    (float) (-Math.PI * 0.35D), (float) (Math.PI * 0.35D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Plus - a cross (add a song / create a playlist). */
+    PLUS {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.10F;
+            float half = size * 0.34F;
+
+            nvg.drawLine(centerX - half, centerY, centerX + half, centerY, color, w);
+            nvg.drawLine(centerX, centerY - half, centerX, centerY + half, color, w);
+        }
+    },
+
+    /** Search - a magnifying glass. */
+    SEARCH {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.09F;
+
+            nvg.beginPath();
+            nvg.arc(centerX - size * 0.08F, centerY - size * 0.08F, size * 0.28F,
+                    0.0F, (float) (Math.PI * 2.0D), NanoVG.NVG_CW);
+            nvg.strokePath(color, w);
+
+            nvg.drawLine(centerX + size * 0.12F, centerY + size * 0.12F,
+                    centerX + size * 0.40F, centerY + size * 0.40F, color, w);
+        }
+    },
+
+    /** Folder - opens the music folder in the system file manager. */
+    FOLDER {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.42F, centerY + size * 0.32F);
+            nvg.lineTo(centerX - size * 0.42F, centerY - size * 0.30F);
+            nvg.lineTo(centerX - size * 0.08F, centerY - size * 0.30F);
+            nvg.lineTo(centerX + size * 0.04F, centerY - size * 0.16F);
+            nvg.lineTo(centerX + size * 0.42F, centerY - size * 0.16F);
+            nvg.lineTo(centerX + size * 0.42F, centerY + size * 0.32F);
+            nvg.closePath();
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Playlist - three lines with a small note on the last one. */
+    PLAYLIST {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = size * 0.085F;
+            float left = centerX - size * 0.40F;
+            float right = centerX + size * 0.40F;
+
+            nvg.drawLine(left, centerY - size * 0.26F, right, centerY - size * 0.26F, color, w);
+            nvg.drawLine(left, centerY, right, centerY, color, w);
+            nvg.drawLine(left, centerY + size * 0.26F, centerX + size * 0.10F, centerY + size * 0.26F, color, w);
+
+            // Small note head on the last line.
+            nvg.drawCircle(centerX + size * 0.28F, centerY + size * 0.26F, size * 0.10F, color);
+        }
     };
 
     /** The official logo of GitHub (octicons, MIT license). */

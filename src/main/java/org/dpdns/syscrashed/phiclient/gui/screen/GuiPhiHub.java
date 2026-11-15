@@ -9,6 +9,8 @@ import org.dpdns.syscrashed.phiclient.gui.PhiGuiManager;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicImporter;
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.navigation.PhiNavBar;
 import org.dpdns.syscrashed.phiclient.gui.screen.category.HomeCategory;
@@ -157,6 +159,11 @@ public class GuiPhiHub extends GuiScreen {
         this.introAnimation.reset();
         this.introAnimation.setDirection(Direction.FORWARDS);
         this.lastFrameTime = System.currentTimeMillis();
+
+        // Drag-and-drop music import: installed once on the LWJGL canvas, active only while the
+        // hub is on screen (files dropped in game are ignored).
+        PhiMusicManager.get().installDropTarget();
+        PhiMusicManager.get().setDropEnabled(true);
     }
 
     @Override
@@ -257,6 +264,14 @@ public class GuiPhiHub extends GuiScreen {
 
         // The toast confirms an action at the top of the game window.
         PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
+
+        // Music imports (dialog and drag-and-drop) report their outcome here.
+        PhiMusicImporter.ImportResult importResult = PhiMusicManager.get().pollImportResult();
+        if (importResult != null) {
+            toast.show(PhiI18n.get("music.import.title"),
+                    PhiI18n.tr("music.import.result", importResult.getImported(), importResult.getSkipped()));
+        }
+
         toast.update();
         toast.draw(nvg, this.width, this.height, this.layout.getUiScale());
     }
@@ -472,6 +487,9 @@ public class GuiPhiHub extends GuiScreen {
         // Keys like W / Shift may be held when the screen opened; clear them so the player does not
         // drift after closing.
         KeyBinding.unPressAllKeys();
+
+        // The music keeps playing after the hub closes; only the drop import is disabled.
+        PhiMusicManager.get().setDropEnabled(false);
     }
 
     /**
