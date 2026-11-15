@@ -31,6 +31,7 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 import org.dpdns.syscrashed.phiclient.gui.util.PhiIconFeedback;
+import org.dpdns.syscrashed.phiclient.gui.widget.PhiTooltip;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.lwjgl.nanovg.NanoVG;
 
@@ -87,6 +88,13 @@ public class MusicCategory extends PhiCategory {
 
     /** The import collision the confirmation overlay decides (null when there is none). */
     private PhiMusicImporter.ImportConflict pendingConflict;
+
+    /** The tooltip of the hovered song (the row itself truncates the title). */
+    private final PhiTooltip songTooltip = new PhiTooltip();
+
+    /** The anchor of the song tooltip (it keeps its place while it fades out). */
+    private float tooltipAnchorX;
+    private float tooltipAnchorY;
 
     /** Play / pause icon morph (Cupertino replace + damped spring), driven by the playing state. */
     private final PhiIconFeedback playFeedback = new PhiIconFeedback(PhiIcons.PLAY, PhiIcons.PAUSE, true);
@@ -380,6 +388,41 @@ public class MusicCategory extends PhiCategory {
         // The confirmation panel is the topmost layer of the page.
         if (this.confirmVisible) {
             this.confirmOverlay.draw(nvg, mouseX, mouseY, partialTicks);
+        }
+
+        drawSongTooltip(nvg, layout, partialTicks);
+    }
+
+    /**
+     * Draws the tooltip of the hovered song: the row truncates a long title, the tooltip shows it
+     * in full. The tooltip clamps itself against the game window, so it never leaves the screen.
+     */
+    private void drawSongTooltip(NanoVGManager nvg, PhiHubLayout layout, float partialTicks) {
+        float deltaMs = partialTicks * 50.0F;
+        PhiSongCard hovered = null;
+
+        if (!this.overlayVisible && !this.confirmVisible) {
+            for (PhiSongCard card : this.cards) {
+                if (card.isHovered()) {
+                    hovered = card;
+                    break;
+                }
+            }
+        }
+
+        if (hovered != null) {
+            String artist = hovered.getTrack().getArtist() != null
+                    ? hovered.getTrack().getArtist() : PhiI18n.get("music.local");
+            this.tooltipAnchorX = hovered.getX() + hovered.getWidth() * 0.5F;
+            this.tooltipAnchorY = hovered.getY() + hovered.getHeight() * 0.5F;
+            this.songTooltip.update(hovered.getTrack().getTitle() + " - " + artist, true, deltaMs);
+        } else {
+            this.songTooltip.update("", false, deltaMs);
+        }
+
+        if (this.songTooltip.isVisible()) {
+            this.songTooltip.draw(nvg, this.tooltipAnchorX, this.tooltipAnchorY,
+                    layout.getDisplayWidth(), layout.getDisplayHeight(), this.uiScale);
         }
     }
 

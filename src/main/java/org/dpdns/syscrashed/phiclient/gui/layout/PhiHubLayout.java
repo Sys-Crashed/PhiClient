@@ -59,6 +59,11 @@ public final class PhiHubLayout {
 
     private boolean initialised;
 
+    /** The physical size of the game window (the tooltips clamp themselves against it). */
+    private int displayWidth;
+
+    private int displayHeight;
+
     /**
      * Recomputes the hub geometry for the current frame.
      *
@@ -70,6 +75,8 @@ public final class PhiHubLayout {
      */
     public void update(int displayWidth, int displayHeight, int scaledWidth, int scaledHeight, float deltaMs) {
         this.uiScale = PhiMetrics.uiScale(scaledWidth);
+        this.displayWidth = displayWidth;
+        this.displayHeight = displayHeight;
 
         float scaleFactor = scaledWidth > 0 ? displayWidth / (float) scaledWidth : 1.0F;
 
@@ -128,6 +135,20 @@ public final class PhiHubLayout {
      */
     public float getHubHeight() {
         return this.hubHeight;
+    }
+
+    /**
+     * @return the physical width of the game window.
+     */
+    public int getDisplayWidth() {
+        return this.displayWidth;
+    }
+
+    /**
+     * @return the physical height of the game window.
+     */
+    public int getDisplayHeight() {
+        return this.displayHeight;
     }
 
     /**
