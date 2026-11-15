@@ -11,7 +11,8 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  *
  * <p>The sheen replaces the former circular reveal. It is drawn in the sheared coordinate system of
  * the shape, where both the shape and the highlight band are rounded rectangles with the same corner
- * radius. The band therefore stays inside the shape without relying on a scissor rectangle. A sweep
+ * radius. The band is one single rounded path; its two gradient halves are separated by scissor
+ * rectangles, so the band has no corner gap at its centre and no protruding sharp corners. A sweep
  * that has already started always plays to the end, so a pointer that only passes over a component
  * still produces visible feedback.</p>
  *
@@ -113,6 +114,11 @@ public final class PhiSheen {
      * Draws the highlight band in the sheared coordinate system. Two linear gradients form a band
      * that is transparent at both ends and brightest at its centre. The band travels horizontally;
      * the shear turns its vertical sides into edges parallel to the slanted sides of the shape.
+     *
+     * <p>The band is one single rounded path (same corner radius as the shape, so it never protrudes
+     * with sharp corners and never opens a gap at its centre). The two gradient halves are separated
+     * by scissor rectangles instead of two half paths; the gradients keep their unclipped end points
+     * so the brightness curve does not change at the shape edges.</p>
      */
     private static void drawBand(NanoVGManager nvg, float width, float height, float radius,
                                  float sweep, int color) {
@@ -120,31 +126,34 @@ public final class PhiSheen {
         float eased = 1.0F - (float) Math.pow(1.0F - sweep, 3.0D);
         float center = -band * 0.5F + (width + band) * eased;
 
-        int transparent = PhiTheme.withAlpha(color, 0.0F);
-        int bright = PhiTheme.withAlpha(color, SHEEN_ALPHA);
+        float bandLeft = center - band * 0.5F;
+        float bandRight = center + band * 0.5F;
+        float left = Math.max(0.0F, bandLeft);
+        float right = Math.min(width, bandRight);
 
-        bandHalf(nvg, width, height, radius, center - band * 0.5F, center, transparent, bright);
-        bandHalf(nvg, width, height, radius, center, center + band * 0.5F, bright, transparent);
-    }
-
-    /**
-     * Fills one half of the band. The path uses the same corner radius as the shape, so it is
-     * inscribed in the rounded shape instead of protruding with four sharp corners. The gradient
-     * keeps its unclipped end points so the brightness curve does not change at the shape edges.
-     */
-    private static void bandHalf(NanoVGManager nvg, float width, float height, float radius,
-                                 float fromX, float toX, int fromColor, int toColor) {
-        float left = Math.max(0.0F, fromX);
-        float right = Math.min(width, toX);
-
-        if (right - left <= 0.01F || toX - fromX <= 0.01F) {
+        if (right - left <= 0.01F) {
             return;
         }
 
+        int transparent = PhiTheme.withAlpha(color, 0.0F);
+        int bright = PhiTheme.withAlpha(color, SHEEN_ALPHA);
+
         float halfRadius = Math.min(radius, (right - left) * 0.5F);
+        float mid = Math.max(left, Math.min(right, center));
 
         nvg.beginPath();
         nvg.addRoundedRect(left, 0.0F, right - left, height, halfRadius);
-        nvg.fillPathGradient(fromColor, toColor, fromX, 0.0F, toX, 0.0F);
+
+        // Leading half: transparent at the band start, bright at the centre.
+        if (mid - left > 0.01F) {
+            nvg.scissor(left, 0.0F, mid - left, height);
+            nvg.fillPathGradient(transparent, bright, bandLeft, 0.0F, center, 0.0F);
+        }
+        // Trailing half: bright at the centre, transparent at the band end.
+        if (right - mid > 0.01F) {
+            nvg.scissor(mid, 0.0F, right - mid, height);
+            nvg.fillPathGradient(bright, transparent, center, 0.0F, bandRight, 0.0F);
+        }
+        nvg.resetScissor();
     }
 }
