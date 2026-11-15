@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient.gui.component;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcons;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicManager;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicPlayer;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Fonts;
@@ -44,7 +45,8 @@ public class PhiMusicControl extends PhiComponent {
 
     private final float uiScale;
 
-    private final PhiMusicPlayer player = new PhiMusicPlayer();
+    /** The shared playback engine (the hub keeps playing after the GUI closes). */
+    private final PhiMusicPlayer player = PhiMusicManager.get().getPlayer();
 
     private final PhiIconButton previousButton;
     private final PhiIconButton playButton;
@@ -109,12 +111,23 @@ public class PhiMusicControl extends PhiComponent {
         float barY = y + height - padding - barHeight;
 
         this.progressBar = new PhiProgressBar(contentLeft, barY, contentRight - contentLeft, barHeight, uiScale);
+        this.progressBar.setSeekListener(new PhiProgressBar.SeekListener() {
+            @Override
+            public void onSeek(float ratio) {
+                PhiMusicControl.this.player.seek(ratio);
+            }
+        });
+    }
+
+    @Override
+    public void mouseReleased(int mouseX, int mouseY, int mouseButton) {
+        this.progressBar.mouseReleased(mouseX, mouseY, mouseButton);
+        super.mouseReleased(mouseX, mouseY, mouseButton);
     }
 
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
-        this.player.update();
-
+        // The engine is tick-driven by PhiMusicManager (no per-screen update here).
         float radius = PhiMetrics.CORNER_RADIUS * this.uiScale;
         float padding = PhiMetrics.CARD_PADDING * this.uiScale;
 
@@ -202,6 +215,7 @@ public class PhiMusicControl extends PhiComponent {
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        this.progressBar.mouseClicked(mouseX, mouseY, mouseButton);
         this.previousButton.mouseClicked(mouseX, mouseY, mouseButton);
         this.playButton.mouseClicked(mouseX, mouseY, mouseButton);
         this.nextButton.mouseClicked(mouseX, mouseY, mouseButton);

@@ -43,16 +43,22 @@ status.active=動作中
 status.planned=予定
 
 # Music page
-music.player.title=ミュージックプレイヤー
-music.player.desc=再生エンジンは接続済みです
-music.playlist.title=プレイリスト
-music.playlist.desc=music フォルダーのオーディオファイル
-music.current.title=現在のトラック
-music.folder.title=ミュージックフォルダー
-music.folder.desc=このフォルダーにオーディオファイルを入れてください
 music.not_found=音楽が見つかりません
 music.local=ローカルミュージック
 music.tracks=%d 曲
+music.search=検索
+music.tab.all=すべて
+music.tab.favorite=お気に入り
+music.playlist.manage=プレイリストを管理
+music.playlist.add=プレイリストに追加
+music.playlist.rename=名前を変更
+music.playlist.delete=削除
+music.playlist.create=新規作成
+music.playlist.default_name=プレイリスト %d
+music.empty=曲がありません。右下の + で追加してください
+music.search.empty=一致する曲がありません
+music.import.title=音楽のインポート
+music.import.result=%d 曲を追加、%d 曲をスキップしました
 
 # Settings page
 settings.theme.title=テーマ
