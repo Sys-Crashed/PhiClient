@@ -126,15 +126,17 @@ public class MusicCategory extends PhiCategory {
         float top = layout.getHubY() + padding;
         float contentBottom = layout.getHubY() + layout.getHubHeight() - padding;
 
-        // One content column for the whole page, anchored at the bottom of the hub.
-        float columnX = contentLeft(layout, contentBottom);
-        float columnRight = contentRight(layout, contentBottom);
-        float columnWidth = columnRight - columnX;
+        // Soar-style grid: every row measures its own content rectangle at its OWN height. The
+        // left edge of the hub leans to the right, so a row near the top starts further right than
+        // a row near the bottom - a single bottom-anchored column would push the top rows into the
+        // navigation band.
+        float controlsHeight = ROW_CONTROLS_HEIGHT * s;
 
         // Headline row: the title at the left, the search field at the right.
-        float controlsHeight = ROW_CONTROLS_HEIGHT * s;
-        float searchWidth = Math.min(200.0F * s, columnWidth * 0.42F);
-        this.searchField = new PhiSearchField(columnRight - searchWidth, top, searchWidth,
+        float titleRowBottom = top + controlsHeight;
+        float titleRowRight = contentRight(layout, titleRowBottom);
+        float searchWidth = Math.min(200.0F * s, (titleRowRight - contentLeft(layout, titleRowBottom)) * 0.42F);
+        this.searchField = new PhiSearchField(titleRowRight - searchWidth, top, searchWidth,
                 controlsHeight, s);
         this.searchField.setPlaceholder(PhiI18n.get("music.search"));
         this.searchField.setText(this.searchText);
@@ -146,22 +148,30 @@ public class MusicCategory extends PhiCategory {
         });
         this.components.add(this.searchField);
 
-        // View tabs.
-        float tabY = top + controlsHeight + 12.0F * s;
-        this.tabBar = new PhiMusicTabBar(columnX, tabY, columnWidth, controlsHeight, s);
+        // View tabs (their own row, anchored at the bottom of the row).
+        float tabY = titleRowBottom + 12.0F * s;
+        float tabBottom = tabY + controlsHeight;
+        float tabX = contentLeft(layout, tabBottom);
+        this.tabBar = new PhiMusicTabBar(tabX, tabY, contentRight(layout, tabBottom) - tabX,
+                controlsHeight, s);
         this.tabBar.setListener(new TabListener());
         this.components.add(this.tabBar);
 
-        // Bottom control bar.
+        // Bottom control bar: a parallelogram anchored at the bottom of the hub (its left edge
+        // follows the hub edge, like the cards of the home page).
         this.barHeight = BAR_HEIGHT * s;
         this.barY = contentBottom - this.barHeight;
-        this.barX = columnX;
-        this.barWidth = columnWidth;
+        this.barX = contentLeft(layout, contentBottom);
+        this.barWidth = contentRight(layout, contentBottom) - this.barX;
 
-        // Song list between the tabs and the control bar.
-        float listTop = tabY + controlsHeight + 12.0F * s;
+        // Song list: one upright content rectangle. The left x is measured at the TOP of the list
+        // (the largest left edge), the right x at the BOTTOM (the smallest right edge), so the
+        // rectangle stays inside the hub at every height and the cards never drift sideways.
+        float listTop = tabBottom + 12.0F * s;
         float listHeight = Math.max(40.0F * s, this.barY - 12.0F * s - listTop);
-        this.songList = new PhiSongList(columnX, listTop, columnWidth, listHeight,
+        float listX = contentLeft(layout, listTop);
+        float listRight = contentRight(layout, listTop + listHeight);
+        this.songList = new PhiSongList(listX, listTop, listRight - listX, listHeight,
                 PhiSongCard.ROW_HEIGHT * s, 8.0F * s);
         this.components.add(this.songList);
 
@@ -169,10 +179,9 @@ public class MusicCategory extends PhiCategory {
         this.cardsSignature = "";
         rebuildCards();
 
-        // The overlay sits above the list but below the control bar in z-order of the input:
-        // it is only drawn while open and is the only input target then.
-        this.overlay = new PhiPlaylistOverlay(columnX + columnWidth * 0.10F, listTop,
-                columnWidth * 0.80F, listHeight, s);
+        // The overlay is centered on the list and is the only input target while open.
+        this.overlay = new PhiPlaylistOverlay(listX + (listRight - listX) * 0.10F, listTop,
+                (listRight - listX) * 0.80F, listHeight, s);
         this.overlay.setListener(new OverlayListener());
         this.overlayVisible = false;
     }
@@ -293,11 +302,17 @@ public class MusicCategory extends PhiCategory {
         rebuildCards();
         syncCardStates();
 
-        // Headline.
+        // The bar panel is drawn BEFORE the components, so the transport buttons and the sliders
+        // (drawn by super.draw) land on top of it instead of being covered by it.
+        nvg.drawSkewRect(this.barX, this.barY, this.barWidth, this.barHeight,
+                PhiMetrics.CORNER_RADIUS * this.uiScale, PhiTheme.level2());
+
+        // Headline, measured at the bottom of its own row (never at the bottom of the page).
         float titleSize = 24.0F * this.uiScale;
+        float titleRowBottom = layout.getHubY() + layout.getPadding() + ROW_CONTROLS_HEIGHT * this.uiScale;
         float titleY = layout.getHubY() + layout.getPadding()
                 + (ROW_CONTROLS_HEIGHT * this.uiScale - titleSize) * 0.5F;
-        nvg.drawText(getDisplayName(), this.songList.getX() + PhiSkew.offset(ROW_CONTROLS_HEIGHT * this.uiScale),
+        nvg.drawText(getDisplayName(), contentLeft(layout, titleRowBottom),
                 titleY, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
 
         super.draw(nvg, layout, mouseX, mouseY, partialTicks);
@@ -320,7 +335,8 @@ public class MusicCategory extends PhiCategory {
     }
 
     /**
-     * Draws the bottom control bar: the panel, the current track and the times.
+     * Draws the content of the bottom control bar: the current track and the times. The panel
+     * itself is drawn earlier (before the components), the buttons are components.
      */
     private void drawControlBar(NanoVGManager nvg) {
         float s = this.uiScale;
@@ -328,8 +344,6 @@ public class MusicCategory extends PhiCategory {
         float barPad = 14.0F * s;
         float contentLeft = PhiSkew.contentLeft(this.barX, this.barHeight, barPad);
         float contentRight = PhiSkew.contentRight(this.barX, this.barWidth, barPad);
-
-        nvg.drawSkewRect(this.barX, this.barY, this.barWidth, this.barHeight, radius, PhiTheme.level2());
 
         PhiMusicPlayer player = this.manager.getPlayer();
 
@@ -348,7 +362,8 @@ public class MusicCategory extends PhiCategory {
         float titleSize = PhiMetrics.FONT_TITLE * s * 0.92F;
         float bodySize = PhiMetrics.FONT_BODY * s * 0.92F;
         float textX = contentLeft + coverSize + 12.0F * s;
-        float textWidth = Math.max(20.0F * s, 150.0F * s);
+        // The texts are clipped before the transport buttons, so they can never run into them.
+        float textWidth = Math.max(20.0F * s, Math.min(150.0F * s, this.playButton.getX() - textX - 10.0F * s));
 
         nvg.drawText(nvg.limitText(title, titleSize, Fonts.REGULAR, textWidth), textX,
                 coverY + 2.0F * s, PhiTheme.textPrimary(), titleSize, Fonts.REGULAR);
