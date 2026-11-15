@@ -30,8 +30,15 @@ public final class PhiTypewriterText {
     /** The wrapped lines of the text that is currently shown. */
     private final List<String> lines = new ArrayList<String>();
 
-    /** The index of the last character of every wrapped line inside the text. */
+    /** The exclusive end index of every wrapped line inside the text. */
     private final List<Integer> lineEnds = new ArrayList<Integer>();
+
+    /**
+     * The exact start index of every wrapped line inside the text. Word-wrapped lines start right
+     * after the space of the previous line; CJK lines (broken character by character) start exactly
+     * where the previous line ended, so a derived {@code prevEnd + 1} would skip a character there.
+     */
+    private final List<Integer> lineStarts = new ArrayList<Integer>();
 
     /** The text the wrapped lines belong to. */
     private int wrappedIndex = -1;
@@ -122,6 +129,10 @@ public final class PhiTypewriterText {
      * Wraps the text that is currently shown into lines that fit into the given width. The result is
      * cached, so the lines do not jump while the text is written out.
      *
+     * <p>English text is wrapped word by word (a single over-long word is shortened with an
+     * ellipsis). CJK text (Chinese/Japanese - it has no spaces to break on) is wrapped character by
+     * character, never splitting a surrogate pair.</p>
+     *
      * @param nvg   the NanoVG drawing context.
      * @param width the width of a line.
      * @param size  the font size of the text.
@@ -135,6 +146,7 @@ public final class PhiTypewriterText {
         this.wrappedWidth = width;
         this.lines.clear();
         this.lineEnds.clear();
+        this.lineStarts.clear();
 
         String text = this.texts.get(this.index);
         int position = 0;
@@ -149,28 +161,98 @@ public final class PhiTypewriterText {
             }
 
             String word = text.substring(position, wordEnd);
-            String candidate = line.length() == 0 ? word : line + " " + word;
 
-            if (nvg.textWidth(candidate, size, Fonts.REGULAR) > width && line.length() > 0) {
+            if (line.length() > 0) {
+                String candidate = line + " " + word;
+
+                if (nvg.textWidth(candidate, size, Fonts.REGULAR) <= width) {
+                    line = new StringBuilder(candidate);
+                    position = wordEnd + 1;
+                    continue;
+                }
+
+                // The word does not fit on the open line: flush it and retry the word alone.
                 this.lines.add(line.toString());
                 this.lineEnds.add(lineStart + line.length());
+                this.lineStarts.add(lineStart);
 
                 lineStart = position;
-                line = new StringBuilder(word);
-            } else if (line.length() == 0) {
-                // A single word that is longer than the column is shortened.
-                line = new StringBuilder(nvg.limitText(word, size, Fonts.REGULAR, width));
-            } else {
-                line = new StringBuilder(candidate);
+                line = new StringBuilder();
             }
 
+            // The line is empty here: the word starts its own line.
+            if (nvg.textWidth(word, size, Fonts.REGULAR) <= width) {
+                line = new StringBuilder(word);
+                position = wordEnd + 1;
+                continue;
+            }
+
+            if (isCjkWord(word)) {
+                // CJK text has no spaces to break on: wrap character by character (by code point,
+                // so a surrogate pair is never split). Every full chunk becomes its own line.
+                StringBuilder chunk = new StringBuilder();
+                int chunkStart = position;
+
+                while (position < wordEnd) {
+                    int codePoint = text.codePointAt(position);
+                    int charCount = Character.charCount(codePoint);
+                    String next = chunk.toString() + text.substring(position, position + charCount);
+
+                    if (nvg.textWidth(next, size, Fonts.REGULAR) > width && chunk.length() > 0) {
+                        this.lines.add(chunk.toString());
+                        this.lineEnds.add(chunkStart + chunk.length());
+                        this.lineStarts.add(chunkStart);
+
+                        chunkStart = position;
+                        chunk = new StringBuilder();
+                    }
+
+                    chunk.append(text, position, position + charCount);
+                    position += charCount;
+                }
+
+                // The remainder of the word stays on the open line (position is now at wordEnd).
+                line = new StringBuilder(chunk.toString());
+                continue;
+            }
+
+            // A single Latin word that is longer than the column is shortened with an ellipsis.
+            line = new StringBuilder(nvg.limitText(word, size, Fonts.REGULAR, width));
             position = wordEnd + 1;
         }
 
         if (line.length() > 0) {
             this.lines.add(line.toString());
             this.lineEnds.add(lineStart + line.length());
+            this.lineStarts.add(lineStart);
         }
+    }
+
+    /**
+     * @param word a word of the wrapped text.
+     * @return true if the word contains CJK characters and should be wrapped character by character.
+     */
+    private static boolean isCjkWord(String word) {
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+
+            if (isCjk(c)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param c a character.
+     * @return true for CJK radicals/symbols/unified ideographs, Hiragana, Katakana and fullwidth
+     *         forms (the ranges the translations use).
+     */
+    private static boolean isCjk(char c) {
+        return (c >= 0x2E80 && c <= 0x9FFF)   // radicals, CJK symbols, unified ideographs (+ ext A)
+                || (c >= 0x3040 && c <= 0x30FF) // Hiragana + Katakana
+                || (c >= 0xFF00 && c <= 0xFFEF); // fullwidth forms
     }
 
     /**
@@ -182,10 +264,16 @@ public final class PhiTypewriterText {
 
     /**
      * @param line the index of a wrapped line.
-     * @return the index of the first character of the line inside the text.
+     * @return the index of the first character of the line inside the text. The exact stored start
+     *         is used instead of a derived {@code prevEnd + 1}, because CJK lines are broken
+     *         character by character without a separating space.
      */
     public int getLineStart(int line) {
-        return line == 0 ? 0 : this.lineEnds.get(line - 1) + 1;
+        if (line < 0 || line >= this.lineStarts.size()) {
+            return 0;
+        }
+
+        return this.lineStarts.get(line);
     }
 
     /**

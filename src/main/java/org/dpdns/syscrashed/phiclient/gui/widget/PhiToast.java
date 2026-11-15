@@ -16,6 +16,7 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * <p>Provided methods:</p>
  * <ul>
  *   <li>{@link #show(String, String)} - shows a toast.</li>
+ *   <li>{@link #hide()} - hides the toast immediately.</li>
  *   <li>{@link #update()} - hides the toast when its time is over.</li>
  *   <li>{@link #draw(NanoVGManager, int, int, float)} - renders the toast.</li>
  * </ul>
@@ -47,6 +48,14 @@ public class PhiToast {
         this.message = message == null ? "" : message;
         this.startTime = System.currentTimeMillis();
         this.visible = true;
+    }
+
+    /**
+     * Hides the toast immediately. Used by the language switch (which clears the currently shown
+     * toast so its old-language text does not linger next to the refreshed interface).
+     */
+    public void hide() {
+        this.visible = false;
     }
 
     /**

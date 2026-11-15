@@ -1,7 +1,10 @@
 package org.dpdns.syscrashed.phiclient.gui.screen.category;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.dpdns.syscrashed.phiclient.gui.component.PhiCard;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiComponent;
@@ -9,6 +12,7 @@ import org.dpdns.syscrashed.phiclient.gui.component.PhiScrollable;
 import org.dpdns.syscrashed.phiclient.gui.icon.PhiIcon;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * A page of the PhiHub (package {@code org.dpdns.syscrashed.phiclient.gui.screen.category}).
@@ -47,6 +51,16 @@ public abstract class PhiCategory {
 
     private final PhiIcon icon;
 
+    /**
+     * Maps a stable category name to the suffix of its {@code category.<suffix>.title} i18n key.
+     * Only irregular names are listed; every other name is lower-cased to form the suffix.
+     */
+    private static final Map<String, String> NAME_KEY_SUFFIXES = new HashMap<String, String>();
+
+    static {
+        NAME_KEY_SUFFIXES.put("Setting", "settings");
+    }
+
     /** The components of this page, positioned in absolute (scaled) coordinates. */
     protected final List<PhiComponent> components = new ArrayList<PhiComponent>();
 
@@ -67,6 +81,23 @@ public abstract class PhiCategory {
      */
     public String getName() {
         return this.name;
+    }
+
+    /**
+     * Resolves the localized display name of the page through the i18n key
+     * {@code category.<suffix>.title}, where the suffix is derived from the stable name
+     * (irregular names are listed in {@link #NAME_KEY_SUFFIXES}). Because the lookup happens at
+     * draw time, the name follows a language switch automatically; {@link #getName()} keeps its
+     * stable-English semantics for page matching.
+     *
+     * @return the localized display name, never {@code null}.
+     */
+    public String getDisplayName() {
+        String suffix = NAME_KEY_SUFFIXES.get(this.name);
+        if (suffix == null) {
+            suffix = this.name.toLowerCase(Locale.ROOT);
+        }
+        return PhiI18n.get("category." + suffix + ".title");
     }
 
     /**

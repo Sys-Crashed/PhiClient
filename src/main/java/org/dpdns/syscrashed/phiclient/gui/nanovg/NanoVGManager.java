@@ -9,6 +9,7 @@ import org.dpdns.syscrashed.phiclient.PhiClient;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.Font;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.font.FontManager;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.nanovg.NSVGImage;
@@ -885,7 +886,7 @@ public final class NanoVGManager {
             return text;
         }
 
-        String suffix = "...";
+        String suffix = PhiI18n.get("ui.ellipsis");
         float suffixWidth = textWidth(suffix, size, font);
 
         if (suffixWidth > maxWidth) {
@@ -906,7 +907,35 @@ public final class NanoVGManager {
             }
         }
 
+        // Never cut inside a surrogate pair (the CJK translations are full of non-BMP handling
+        // edge cases in UTF-16) and keep combining marks attached to their base character - a cut
+        // before either would render as garbage/tofu.
+        low = codepointBoundary(text, low);
+
         return text.substring(0, low) + suffix;
+    }
+
+    /**
+     * Moves the cut index down to the closest safe boundary: the substring must not end inside a
+     * surrogate pair and must not start with a combining mark (which would lose its base character).
+     *
+     * @param text the full text.
+     * @param cut  the candidate cut index.
+     * @return a safe cut index ({@code 0} when nothing qualifies).
+     */
+    private static int codepointBoundary(String text, int cut) {
+        int index = cut;
+        while (index > 0) {
+            char current = text.charAt(index);
+            boolean lowSurrogate = Character.isLowSurrogate(current);
+            boolean combining = Character.getType(current) == Character.NON_SPACING_MARK
+                    || Character.getType(current) == Character.COMBINING_SPACING_MARK;
+            if (!lowSurrogate && !combining) {
+                break;
+            }
+            index--;
+        }
+        return index;
     }
 
     /**

@@ -1,6 +1,9 @@
 package org.dpdns.syscrashed.phiclient.gui.changelog;
 
+import java.util.Locale;
+
 import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * The type of a change log entry (package {@code org.dpdns.syscrashed.phiclient.gui.changelog}).
@@ -18,31 +21,29 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
 public enum PhiChangeLogType {
 
     /** Something was added. */
-    ADDED("Added"),
+    ADDED,
 
     /** Something was fixed. */
-    FIXED("Fixed"),
+    FIXED,
 
     /** Something was improved. */
-    IMPROVED("Improved"),
+    IMPROVED,
 
     /** Something was changed. */
-    CHANGED("Changed"),
+    CHANGED,
 
     /** Something was removed. */
-    REMOVED("Removed");
-
-    private final String label;
-
-    PhiChangeLogType(String label) {
-        this.label = label;
-    }
+    REMOVED;
 
     /**
-     * @return the short text of the badge.
+     * Resolves the localized short text of the badge through the i18n key
+     * {@code changelog.type.<name>} (e.g. {@code changelog.type.added}). The lookup happens at draw
+     * time, so the label follows a language switch automatically.
+     *
+     * @return the localized badge text.
      */
     public String getLabel() {
-        return this.label;
+        return PhiI18n.get("changelog.type." + name().toLowerCase(Locale.ROOT));
     }
 
     /**

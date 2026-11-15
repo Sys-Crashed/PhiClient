@@ -1,43 +1,43 @@
 package org.dpdns.syscrashed.phiclient.gui.tips;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+
+import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 
 /**
  * The tips that are shown in the tip card of the home page
  * (package {@code org.dpdns.syscrashed.phiclient.gui.tips}).
  *
- * <p>The first entry is the donation hint - the link is not available yet, so it only announces that
- * it is coming. The other entries are intentionally useless tips.</p>
+ * <p>The tips are stored as i18n keys ({@code tips.1} ... {@code tips.8}); {@link #getTips()}
+ * resolves them in the current language per call, so a language switch is reflected without any
+ * rebuild. The first entry is the donation hint - the link is not available yet, so it only
+ * announces that it is coming. The other entries are intentionally useless tips.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
- *   <li>{@link #getTips()} - the list of tips.</li>
+ *   <li>{@link #getTips()} - the list of tips in the current language.</li>
  * </ul>
  */
 public final class PhiTips {
 
-    private static final List<String> TIPS = new ArrayList<String>();
-
-    static {
-        TIPS.add("Support the development - the donation link is coming soon.");
-        TIPS.add("Did you know? The whole interface leans to the right. That is not a bug, that is the design.");
-        TIPS.add("The hub covers 35 percent of your screen, so you can still see the game behind it.");
-        TIPS.add("The music player really plays the audio files of the PhiClient/music folder.");
-        TIPS.add("If you are reading this, three seconds of your life are gone. Thank you for your support.");
-        TIPS.add("Your skin looks better in the hub than in the inventory screen. Just saying.");
-        TIPS.add("There are eight tips in this list. You will never see all of them. Probably.");
-        TIPS.add("Loading screens are just the game asking you to look at it for a moment.");
-    }
+    /** The number of tips (the {@code .lang} files must provide exactly this many keys). */
+    private static final int TIP_COUNT = 8;
 
     private PhiTips() {
     }
 
     /**
-     * @return the list of tips.
+     * Resolves the tips in the current language. The lookup happens per call (eight O(1) map
+     * lookups), so the returned list always reflects the active language.
+     *
+     * @return the list of tips in the current language.
      */
     public static List<String> getTips() {
-        return Collections.unmodifiableList(TIPS);
+        List<String> tips = new ArrayList<String>(TIP_COUNT);
+        for (int i = 1; i <= TIP_COUNT; i++) {
+            tips.add(PhiI18n.get("tips." + i));
+        }
+        return tips;
     }
 }

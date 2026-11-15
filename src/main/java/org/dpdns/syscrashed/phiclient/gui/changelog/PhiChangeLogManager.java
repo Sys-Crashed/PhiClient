@@ -23,11 +23,14 @@ public final class PhiChangeLogManager {
     private final List<PhiChangeLog> changeLogs = new ArrayList<PhiChangeLog>();
 
     private PhiChangeLogManager() {
-        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "Central hub with a slanted navigation band"));
-        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "Home page with skin portrait and change log"));
-        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "Dark and light palette with a live switch"));
-        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.IMPROVED, "Hub follows the game window with a 35 percent area"));
-        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.FIXED, "Mouse clicks and the scroll wheel reach the interface"));
+        // Only i18n keys are stored here (resolved lazily in the current language); the manager
+        // must not touch the i18n tables at construction time, since the singleton may be created
+        // before PhiI18n.init().
+        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "changelog.entry.1"));
+        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "changelog.entry.2"));
+        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.ADDED, "changelog.entry.3"));
+        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.IMPROVED, "changelog.entry.4"));
+        this.changeLogs.add(new PhiChangeLog(PhiChangeLogType.FIXED, "changelog.entry.5"));
 
 //        // Placeholder entries: they make the list long enough to check the scrolling of the panel.
 //        for (int i = 1; i <= 100; i++) {
@@ -54,10 +57,10 @@ public final class PhiChangeLogManager {
     /**
      * Adds an entry to the change log.
      *
-     * @param type the type of the change.
-     * @param text the description of the change.
+     * @param type    the type of the change.
+     * @param textKey the i18n key of the description (e.g. {@code changelog.entry.6}).
      */
-    public void add(PhiChangeLogType type, String text) {
-        this.changeLogs.add(0, new PhiChangeLog(type, text));
+    public void add(PhiChangeLogType type, String textKey) {
+        this.changeLogs.add(0, new PhiChangeLog(type, textKey));
     }
 }
