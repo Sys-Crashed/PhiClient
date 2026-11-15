@@ -65,6 +65,7 @@ music.import.conflict.cancel=キャンセル
 music.playlist.play=プレイリストを再生
 music.track.delete=曲を削除
 music.track.delete.title=曲を削除
+music.track.delete.message=%s はディスクから削除されます。元に戻せません。
 music.track.delete.confirm=この曲をディスクから削除しますか？元に戻せません。
 music.confirm.yes=確認
 music.confirm.no=キャンセル

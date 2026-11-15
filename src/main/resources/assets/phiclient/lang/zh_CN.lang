@@ -65,6 +65,7 @@ music.import.conflict.cancel=取消
 music.playlist.play=播放歌单
 music.track.delete=删除歌曲
 music.track.delete.title=删除歌曲
+music.track.delete.message=%s 将从磁盘删除，此操作不可恢复。
 music.track.delete.confirm=确定要从磁盘删除这首歌曲吗？此操作不可恢复。
 music.confirm.yes=确认
 music.confirm.no=取消

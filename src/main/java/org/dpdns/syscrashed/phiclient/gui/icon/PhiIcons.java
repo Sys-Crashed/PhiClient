@@ -186,20 +186,18 @@ public enum PhiIcons implements PhiIcon {
         }
     },
 
-    /** Previous track - a triangle pointing left with a bar. */
+    /** Previous track - a bar at the left and a triangle pointing left. */
     PREVIOUS {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
-            float w = size * 0.10F;
+            nvg.drawRect(centerX - size * 0.40F, centerY - size * 0.30F, size * 0.12F, size * 0.60F, color);
 
             nvg.beginPath();
-            nvg.moveTo(centerX - size * 0.06F, centerY - size * 0.30F);
-            nvg.lineTo(centerX - size * 0.06F, centerY + size * 0.30F);
-            nvg.lineTo(centerX + size * 0.36F, centerY);
+            nvg.moveTo(centerX - size * 0.36F, centerY - size * 0.30F);
+            nvg.lineTo(centerX - size * 0.36F, centerY + size * 0.30F);
+            nvg.lineTo(centerX + size * 0.06F, centerY);
             nvg.closePath();
             nvg.fillPath(color);
-
-            nvg.drawRect(centerX - size * 0.40F, centerY - size * 0.30F, size * 0.12F, size * 0.60F, color);
         }
     },
 
@@ -225,16 +223,14 @@ public enum PhiIcons implements PhiIcon {
         }
     },
 
-    /** Next track - a triangle pointing right with a bar. */
+    /** Next track - a triangle pointing right and a bar at the right. */
     NEXT {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
-            float w = size * 0.10F;
-
             nvg.beginPath();
-            nvg.moveTo(centerX + size * 0.06F, centerY - size * 0.30F);
-            nvg.lineTo(centerX + size * 0.06F, centerY + size * 0.30F);
-            nvg.lineTo(centerX - size * 0.36F, centerY);
+            nvg.moveTo(centerX + size * 0.36F, centerY - size * 0.30F);
+            nvg.lineTo(centerX + size * 0.36F, centerY + size * 0.30F);
+            nvg.lineTo(centerX - size * 0.06F, centerY);
             nvg.closePath();
             nvg.fillPath(color);
 
@@ -275,25 +271,27 @@ public enum PhiIcons implements PhiIcon {
         }
     },
 
-    /** Favorite - a five pointed star (filled). */
+    /** Favorite - the outline of a five pointed star (the track is not favorited yet). */
     FAVORITE {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
             float outer = size * 0.46F;
-            float inner = outer * 0.42F;
 
             nvg.beginPath();
-            for (int i = 0; i < 10; i++) {
-                double angle = -Math.PI / 2.0D + i * Math.PI / 5.0D;
-                float radius = (i % 2 == 0) ? outer : inner;
-                float px = centerX + (float) Math.cos(angle) * radius;
-                float py = centerY + (float) Math.sin(angle) * radius;
-                if (i == 0) {
-                    nvg.moveTo(px, py);
-                } else {
-                    nvg.lineTo(px, py);
-                }
-            }
+            starPoints(nvg, centerX, centerY, outer, outer * 0.40F);
+            nvg.closePath();
+            nvg.strokePath(color, Math.max(1.0F, size * 0.085F));
+        }
+    },
+
+    /** Favorite - a filled five pointed star (the track is favorited). */
+    FAVORITE_FILLED {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float outer = size * 0.46F;
+
+            nvg.beginPath();
+            starPoints(nvg, centerX, centerY, outer, outer * 0.40F);
             nvg.closePath();
             nvg.fillPath(color);
         }
@@ -377,32 +375,27 @@ public enum PhiIcons implements PhiIcon {
         }
     },
 
-    /** Volume - a speaker with two sound waves. */
+    /** Volume - a speaker with one sound wave. */
     VOLUME {
         @Override
         public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
-            float w = size * 0.085F;
+            float w = Math.max(1.0F, size * 0.09F);
 
-            // Speaker body (filled trapezoid with the box at the left).
+            // The speaker: a small box at the left and the cone that opens to the right.
             nvg.beginPath();
-            nvg.moveTo(centerX - size * 0.42F, centerY - size * 0.14F);
-            nvg.lineTo(centerX - size * 0.22F, centerY - size * 0.14F);
+            nvg.moveTo(centerX - size * 0.42F, centerY - size * 0.13F);
+            nvg.lineTo(centerX - size * 0.24F, centerY - size * 0.13F);
             nvg.lineTo(centerX - size * 0.02F, centerY - size * 0.34F);
             nvg.lineTo(centerX - size * 0.02F, centerY + size * 0.34F);
-            nvg.lineTo(centerX - size * 0.22F, centerY + size * 0.14F);
-            nvg.lineTo(centerX - size * 0.42F, centerY + size * 0.14F);
+            nvg.lineTo(centerX - size * 0.24F, centerY + size * 0.13F);
+            nvg.lineTo(centerX - size * 0.42F, centerY + size * 0.13F);
             nvg.closePath();
             nvg.fillPath(color);
 
-            // Sound waves.
+            // A single sound wave - more waves only blur into a block at the small icon size.
             nvg.beginPath();
-            nvg.arc(centerX + size * 0.06F, centerY, size * 0.18F,
-                    (float) (-Math.PI * 0.35D), (float) (Math.PI * 0.35D), NanoVG.NVG_CW);
-            nvg.strokePath(color, w);
-
-            nvg.beginPath();
-            nvg.arc(centerX + size * 0.06F, centerY, size * 0.32F,
-                    (float) (-Math.PI * 0.35D), (float) (Math.PI * 0.35D), NanoVG.NVG_CW);
+            nvg.arc(centerX - size * 0.02F, centerY, size * 0.24F,
+                    (float) (-Math.PI * 0.36D), (float) (Math.PI * 0.36D), NanoVG.NVG_CW);
             nvg.strokePath(color, w);
         }
     },
@@ -468,8 +461,101 @@ public enum PhiIcons implements PhiIcon {
             // Small note head on the last line.
             nvg.drawCircle(centerX + size * 0.28F, centerY + size * 0.26F, size * 0.10F, color);
         }
+    },
+
+    /** Delete - a trash can. */
+    DELETE {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = Math.max(1.0F, size * 0.085F);
+
+            // The handle above the lid.
+            nvg.drawLine(centerX - size * 0.12F, centerY - size * 0.24F, centerX - size * 0.12F,
+                    centerY - size * 0.36F, color, w);
+            nvg.drawLine(centerX - size * 0.12F, centerY - size * 0.36F, centerX + size * 0.12F,
+                    centerY - size * 0.36F, color, w);
+            nvg.drawLine(centerX + size * 0.12F, centerY - size * 0.36F, centerX + size * 0.12F,
+                    centerY - size * 0.24F, color, w);
+
+            // The lid.
+            nvg.drawLine(centerX - size * 0.34F, centerY - size * 0.24F, centerX + size * 0.34F,
+                    centerY - size * 0.24F, color, w);
+
+            // The body.
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.24F, centerY - size * 0.14F);
+            nvg.lineTo(centerX - size * 0.17F, centerY + size * 0.34F);
+            nvg.lineTo(centerX + size * 0.17F, centerY + size * 0.34F);
+            nvg.lineTo(centerX + size * 0.24F, centerY - size * 0.14F);
+            nvg.closePath();
+            nvg.strokePath(color, w);
+        }
+    },
+
+    /** Play a playlist - three lines of a list with a play triangle. */
+    PLAY_LIST {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = Math.max(1.0F, size * 0.085F);
+
+            nvg.drawLine(centerX - size * 0.42F, centerY - size * 0.28F, centerX + size * 0.18F,
+                    centerY - size * 0.28F, color, w);
+            nvg.drawLine(centerX - size * 0.42F, centerY, centerX + size * 0.18F, centerY, color, w);
+            nvg.drawLine(centerX - size * 0.42F, centerY + size * 0.28F, centerX + size * 0.02F,
+                    centerY + size * 0.28F, color, w);
+
+            // The play triangle in front of the lines.
+            nvg.beginPath();
+            nvg.moveTo(centerX + size * 0.18F, centerY - size * 0.16F);
+            nvg.lineTo(centerX + size * 0.18F, centerY + size * 0.16F);
+            nvg.lineTo(centerX + size * 0.44F, centerY);
+            nvg.closePath();
+            nvg.fillPath(color);
+        }
+    },
+
+    /** Edit - a pencil. */
+    EDIT {
+        @Override
+        public void draw(NanoVGManager nvg, float centerX, float centerY, float size, int color) {
+            float w = Math.max(1.0F, size * 0.085F);
+
+            nvg.beginPath();
+            nvg.moveTo(centerX - size * 0.36F, centerY + size * 0.34F);
+            nvg.lineTo(centerX - size * 0.27F, centerY + size * 0.14F);
+            nvg.lineTo(centerX + size * 0.18F, centerY - size * 0.31F);
+            nvg.lineTo(centerX + size * 0.38F, centerY - size * 0.11F);
+            nvg.lineTo(centerX - size * 0.07F, centerY + size * 0.34F);
+            nvg.closePath();
+            nvg.strokePath(color, w);
+        }
     };
 
     /** The official logo of GitHub (octicons, MIT license). */
     String GITHUB_MARK = "/assets/phiclient/images/github-mark.svg";
+
+    /**
+     * Appends the ten points of a five pointed star to the current path.
+     *
+     * @param nvg      the NanoVG drawing context.
+     * @param centerX  the horizontal center of the star.
+     * @param centerY  the vertical center of the star.
+     * @param outer    the radius of the five outer points.
+     * @param inner    the radius of the five inner points.
+     */
+    private static void starPoints(NanoVGManager nvg, float centerX, float centerY,
+                                   float outer, float inner) {
+        for (int i = 0; i < 10; i++) {
+            double angle = -Math.PI / 2.0D + i * Math.PI / 5.0D;
+            float radius = (i % 2 == 0) ? outer : inner;
+            float px = centerX + (float) Math.cos(angle) * radius;
+            float py = centerY + (float) Math.sin(angle) * radius;
+
+            if (i == 0) {
+                nvg.moveTo(px, py);
+            } else {
+                nvg.lineTo(px, py);
+            }
+        }
+    }
 }

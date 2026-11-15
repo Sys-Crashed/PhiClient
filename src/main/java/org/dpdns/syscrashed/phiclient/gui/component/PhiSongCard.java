@@ -44,6 +44,11 @@ public class PhiSongCard extends PhiComponent {
          * @param card the card whose add-to-playlist button was clicked.
          */
         void onAddToPlaylist(PhiSongCard card);
+
+        /**
+         * @param card the card whose delete button was clicked.
+         */
+        void onDelete(PhiSongCard card);
     }
 
     /** The height of one song row in design pixels. */
@@ -70,6 +75,7 @@ public class PhiSongCard extends PhiComponent {
     private float favoriteY;
     private float controlSize;
     private float addX;
+    private float deleteX;
 
     /**
      * @param track   the track of the card.
@@ -123,7 +129,7 @@ public class PhiSongCard extends PhiComponent {
 
         nvg.drawSkewRect(this.x, this.y, this.width, this.height, radius, background);
         this.sheen.drawSkew(nvg, this.x, this.y, this.width, this.height, radius,
-                getHoverProgress(), PhiTheme.accent());
+                getHoverProgress(), PhiTheme.sheen());
 
         float padding = 12.0F * this.uiScale;
         float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
@@ -136,19 +142,20 @@ public class PhiSongCard extends PhiComponent {
         PhiIcons.MUSIC.draw(nvg, contentLeft + coverSize * 0.5F, coverY + coverSize * 0.5F,
                 coverSize * 0.5F, this.playing ? PhiTheme.accent() : PhiTheme.textSecondary());
 
-        // The two upright controls at the right end: add-to-playlist, then the favorite star.
+        // The upright controls at the right end: delete, add-to-playlist and the favorite star.
         this.controlSize = this.height * 0.42F;
         float controlY = this.y + (this.height - this.controlSize) * 0.5F;
         this.favoriteY = controlY;
         this.addX = contentRight - this.controlSize;
         this.favoriteX = this.addX - this.controlSize - padding * 0.6F;
+        this.deleteX = this.favoriteX - this.controlSize - padding * 0.6F;
 
-        // Duration left of the star (a fixed slot, so the row does not jump).
+        // Duration left of the controls (a fixed slot, so the row does not jump).
         float titleSize = PhiMetrics.FONT_TITLE * this.uiScale * 0.88F;
         float bodySize = PhiMetrics.FONT_BODY * this.uiScale * 0.92F;
         float timeSize = bodySize * 0.95F;
         String duration = formatTime(this.track.getDurationSeconds());
-        float durationRight = this.favoriteX - padding * 0.6F;
+        float durationRight = this.deleteX - padding * 0.6F;
 
         nvg.drawTextAligned(duration, durationRight, this.y + (this.height - timeSize) * 0.5F,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
@@ -174,9 +181,13 @@ public class PhiSongCard extends PhiComponent {
         // The controls themselves (upright, accent only for the active favorite).
         PhiIcons.PLUS.draw(nvg, this.addX + this.controlSize * 0.5F, controlY + this.controlSize * 0.5F,
                 this.controlSize * 0.72F, PhiTheme.textPrimary());
-        PhiIcons.FAVORITE.draw(nvg, this.favoriteX + this.controlSize * 0.5F,
-                controlY + this.controlSize * 0.5F, this.controlSize * 0.78F,
-                this.favorite ? PhiTheme.accent() : PhiTheme.textSecondary());
+        (this.favorite ? PhiIcons.FAVORITE_FILLED : PhiIcons.FAVORITE)
+                .draw(nvg, this.favoriteX + this.controlSize * 0.5F,
+                        controlY + this.controlSize * 0.5F, this.controlSize * 0.86F,
+                        this.favorite ? PhiTheme.accent() : PhiTheme.textSecondary());
+        PhiIcons.DELETE.draw(nvg, this.deleteX + this.controlSize * 0.5F,
+                controlY + this.controlSize * 0.5F, this.controlSize * 0.72F,
+                PhiTheme.textSecondary());
     }
 
     @Override
@@ -185,13 +196,17 @@ public class PhiSongCard extends PhiComponent {
             return;
         }
 
-        // The two upright controls use axis aligned boxes (they are not part of the skew family).
+        // The upright controls use axis aligned boxes (they are not part of the skew family).
         if (insideBox(mouseX, mouseY, this.favoriteX, this.favoriteY, this.controlSize)) {
             this.listener.onFavorite(this);
             return;
         }
         if (insideBox(mouseX, mouseY, this.addX, this.favoriteY, this.controlSize)) {
             this.listener.onAddToPlaylist(this);
+            return;
+        }
+        if (insideBox(mouseX, mouseY, this.deleteX, this.favoriteY, this.controlSize)) {
+            this.listener.onDelete(this);
             return;
         }
 

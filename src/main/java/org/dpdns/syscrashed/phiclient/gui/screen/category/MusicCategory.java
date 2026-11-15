@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.dpdns.syscrashed.phiclient.gui.component.PhiConfirmOverlay;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiIconButton;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiMusicTabBar;
 import org.dpdns.syscrashed.phiclient.gui.component.PhiPlaylistOverlay;
@@ -19,6 +20,7 @@ import org.dpdns.syscrashed.phiclient.gui.layout.PhiHubLayout;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiMetrics;
 import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.music.LibraryView;
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicImporter;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicLibrary;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicManager;
 import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicPlayer;
@@ -72,6 +74,19 @@ public class MusicCategory extends PhiCategory {
     private PhiVolumeSlider volumeSlider;
 
     private PhiPlaylistOverlay overlay;
+
+    private PhiConfirmOverlay confirmOverlay;
+
+    private PhiIconButton playListButton;
+
+    /** True while the confirmation overlay is open. */
+    private boolean confirmVisible;
+
+    /** The track the confirmation overlay deletes. */
+    private String pendingDeleteTrackId = "";
+
+    /** The import collision the confirmation overlay decides (null when there is none). */
+    private PhiMusicImporter.ImportConflict pendingConflict;
 
     /** Play / pause icon morph (Cupertino replace + damped spring), driven by the playing state. */
     private final PhiIconFeedback playFeedback = new PhiIconFeedback(PhiIcons.PLAY, PhiIcons.PAUSE, true);
@@ -152,10 +167,26 @@ public class MusicCategory extends PhiCategory {
         float tabY = titleRowBottom + 12.0F * s;
         float tabBottom = tabY + controlsHeight;
         float tabX = contentLeft(layout, tabBottom);
-        this.tabBar = new PhiMusicTabBar(tabX, tabY, contentRight(layout, tabBottom) - tabX,
-                controlsHeight, s);
+        float tabRight = contentRight(layout, tabBottom);
+
+        // The play button of the current view: selecting a playlist only previews it, the play
+        // button starts it explicitly.
+        float playButtonSize = controlsHeight;
+        float playButtonX = tabRight - playButtonSize;
+        this.tabBar = new PhiMusicTabBar(tabX, tabY, playButtonX - 8.0F * s - tabX, controlsHeight, s);
         this.tabBar.setListener(new TabListener());
         this.components.add(this.tabBar);
+
+        this.playListButton = new PhiIconButton(playButtonX, tabY, playButtonSize, playButtonSize, s,
+                PhiIcons.PLAY_LIST);
+        this.playListButton.setAction(new PhiIconButton.Action() {
+            @Override
+            public void onClicked() {
+                MusicCategory.this.manager.playView(MusicCategory.this.manager.getView(),
+                        MusicCategory.this.manager.getPlaylistName());
+            }
+        });
+        this.components.add(this.playListButton);
 
         // Bottom control bar: a parallelogram anchored at the bottom of the hub (its left edge
         // follows the hub edge, like the cards of the home page).
@@ -186,6 +217,15 @@ public class MusicCategory extends PhiCategory {
         this.overlay = new PhiPlaylistOverlay(overlayX, listTop, overlayWidth, listHeight, s);
         this.overlay.setListener(new OverlayListener());
         this.overlayVisible = false;
+
+        // The confirmation panel sits in the middle of the song list.
+        float confirmWidth = 340.0F * s;
+        float confirmHeight = 140.0F * s;
+        float confirmX = (listX + listRight - PhiSkew.offset(confirmHeight) - confirmWidth) * 0.5F;
+        float confirmY = listTop + (listHeight - confirmHeight) * 0.5F;
+        this.confirmOverlay = new PhiConfirmOverlay(confirmX, confirmY, confirmWidth, confirmHeight, s);
+        this.confirmOverlay.setListener(new ConfirmListener());
+        this.confirmVisible = false;
     }
 
     /**
@@ -296,6 +336,8 @@ public class MusicCategory extends PhiCategory {
 
     @Override
     public void draw(NanoVGManager nvg, PhiHubLayout layout, int mouseX, int mouseY, float partialTicks) {
+        checkImportConflicts();
+
         // Sync the live state into the widgets.
         this.tabBar.setSelection(this.manager.getView(), this.manager.getPlaylistName());
         this.tabBar.setPlaylists(this.manager.getPlaylists());
@@ -333,6 +375,11 @@ public class MusicCategory extends PhiCategory {
 
         if (this.overlayVisible) {
             this.overlay.draw(nvg, mouseX, mouseY, partialTicks);
+        }
+
+        // The confirmation panel is the topmost layer of the page.
+        if (this.confirmVisible) {
+            this.confirmOverlay.draw(nvg, mouseX, mouseY, partialTicks);
         }
     }
 
@@ -398,6 +445,10 @@ public class MusicCategory extends PhiCategory {
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        if (this.confirmVisible) {
+            this.confirmOverlay.mouseClicked(mouseX, mouseY, mouseButton);
+            return;
+        }
         if (this.overlayVisible) {
             this.overlay.mouseClicked(mouseX, mouseY, mouseButton);
             return;
@@ -407,7 +458,7 @@ public class MusicCategory extends PhiCategory {
 
     @Override
     public void mouseReleased(int mouseX, int mouseY, int mouseButton) {
-        if (this.overlayVisible) {
+        if (this.confirmVisible || this.overlayVisible) {
             return;
         }
         super.mouseReleased(mouseX, mouseY, mouseButton);
@@ -415,6 +466,10 @@ public class MusicCategory extends PhiCategory {
 
     @Override
     public void keyTyped(char typedChar, int keyCode) {
+        if (this.confirmVisible) {
+            this.confirmOverlay.keyTyped(typedChar, keyCode);
+            return;
+        }
         if (this.overlayVisible) {
             this.overlay.keyTyped(typedChar, keyCode);
             return;
@@ -424,10 +479,34 @@ public class MusicCategory extends PhiCategory {
 
     @Override
     public boolean onWheel(float notches, int mouseX, int mouseY) {
+        if (this.confirmVisible) {
+            return true;
+        }
         if (this.overlayVisible) {
             return this.overlay.onWheel(notches, mouseX, mouseY);
         }
         return super.onWheel(notches, mouseX, mouseY);
+    }
+
+    /**
+     * Asks the user about a pending import collision (overwrite or cancel). The decision is applied
+     * on the client thread, so the collision is published by the importer and consumed here.
+     */
+    private void checkImportConflicts() {
+        if (this.confirmVisible || this.pendingConflict != null || !this.manager.hasPendingImportConflicts()) {
+            return;
+        }
+
+        PhiMusicImporter.ImportConflict conflict = this.manager.pollNextImportConflict();
+        if (conflict == null) {
+            return;
+        }
+
+        this.pendingConflict = conflict;
+        this.confirmOverlay.show(PhiI18n.get("music.import.title"),
+                PhiI18n.tr("music.import.conflict", conflict.getTargetName()),
+                PhiI18n.get("music.import.conflict.overwrite"), false);
+        this.confirmVisible = true;
     }
 
     /**
@@ -639,6 +718,51 @@ public class MusicCategory extends PhiCategory {
         @Override
         public void onAddToPlaylist(PhiSongCard card) {
             openPick(card.getTrack().getId());
+        }
+
+        @Override
+        public void onDelete(PhiSongCard card) {
+            MusicCategory.this.pendingDeleteTrackId = card.getTrack().getId();
+            MusicCategory.this.confirmOverlay.show(PhiI18n.get("music.track.delete.title"),
+                    PhiI18n.tr("music.track.delete.message", card.getTrack().getTitle()),
+                    PhiI18n.get("music.track.delete"), true);
+            MusicCategory.this.confirmVisible = true;
+        }
+    }
+
+    /** Routes the confirmation panel to the facade. */
+    private final class ConfirmListener implements PhiConfirmOverlay.Listener {
+        @Override
+        public void onConfirm() {
+            MusicCategory.this.confirmVisible = false;
+
+            if (MusicCategory.this.pendingConflict != null) {
+                PhiMusicImporter.ImportConflict conflict = MusicCategory.this.pendingConflict;
+                MusicCategory.this.pendingConflict = null;
+                MusicCategory.this.manager.resolveImportConflict(conflict, true);
+                return;
+            }
+
+            String id = MusicCategory.this.pendingDeleteTrackId;
+            MusicCategory.this.pendingDeleteTrackId = "";
+            if (!id.isEmpty()) {
+                MusicCategory.this.manager.deleteTrack(id);
+                MusicCategory.this.rebuildCards();
+            }
+        }
+
+        @Override
+        public void onCancel() {
+            MusicCategory.this.confirmVisible = false;
+
+            if (MusicCategory.this.pendingConflict != null) {
+                PhiMusicImporter.ImportConflict conflict = MusicCategory.this.pendingConflict;
+                MusicCategory.this.pendingConflict = null;
+                MusicCategory.this.manager.resolveImportConflict(conflict, false);
+                return;
+            }
+
+            MusicCategory.this.pendingDeleteTrackId = "";
         }
     }
 

@@ -66,6 +66,7 @@ music.import.conflict.cancel=Cancel
 music.playlist.play=Play playlist
 music.track.delete=Delete song
 music.track.delete.title=Delete song
+music.track.delete.message=%s will be deleted from disk. This cannot be undone.
 music.track.delete.confirm=Delete this song from disk? This cannot be undone.
 music.confirm.yes=Confirm
 music.confirm.no=Cancel

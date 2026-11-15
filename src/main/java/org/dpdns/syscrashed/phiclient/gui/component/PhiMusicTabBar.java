@@ -138,7 +138,7 @@ public class PhiMusicTabBar extends PhiComponent {
                     : (tab.hovered ? PhiTheme.level4() : PhiTheme.level3());
             nvg.drawSkewRect(cursor, this.y, tab.width, this.height, radius, background);
             tab.sheen.drawSkew(nvg, cursor, this.y, tab.width, this.height, radius,
-                    tab.hovered ? 1.0F : 0.0F, PhiTheme.accent());
+                    tab.hovered ? 1.0F : 0.0F, PhiTheme.sheen());
 
             if (tab.createButton) {
                 PhiIcons.PLUS.draw(nvg, cursor + tab.width * 0.5F + PhiSkew.offset(this.height) * 0.5F,

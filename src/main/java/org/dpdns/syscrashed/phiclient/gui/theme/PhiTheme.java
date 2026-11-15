@@ -44,12 +44,19 @@ public final class PhiTheme {
      */
     public static final Palette DARK = new Palette(
             0xFF0E0F12, 0xFF16181D, 0xFF1D2027, 0xFF262A33, 0xFF313641, 0xFF3E4553,
-            0xFFFFFFFF, 0xFFE8EAED, 0xFFA0A6B0);
+            0xFFFFFFFF, 0xFFE8EAED, 0xFFA0A6B0, 0xFFFFFFFF, 0xFFE5484D);
 
-    /** The light palette (L0 - L5 from the brightest to the darkest level). */
+    /**
+     * The light palette (L0 - L5 from the brightest to the darkest level).
+     *
+     * <p>It is a white base with black text: the levels are only a very light grey ladder, so the
+     * depth of the interface comes from the shadows of the parallelograms and not from a saturated
+     * color. The accent is a neutral black, the sheen a light grey and the danger color a low
+     * saturation red that never spreads into the other colors.</p>
+     */
     public static final Palette LIGHT = new Palette(
-            0xFFFFFFFF, 0xFFF7F8FA, 0xFFEEF0F4, 0xFFE2E5EA, 0xFFD4D8E0, 0xFFC3C8D4,
-            0xFF0D9488, 0xFF1C1E23, 0xFF626875);
+            0xFFFFFFFF, 0xFFFCFCFD, 0xFFF6F7F9, 0xFFF0F1F4, 0xFFE7E9ED, 0xFFDDE0E6,
+            0xFF1C1E23, 0xFF111318, 0xFF626875, 0xFFDCDFE5, 0xFFB42318);
 
     /** The duration of a theme transition in milliseconds. */
     private static final long TRANSITION_MS = 300L;
@@ -185,6 +192,20 @@ public final class PhiTheme {
     }
 
     /**
+     * @return the color of the hover sheen (a light grey in the light palette).
+     */
+    public static int sheen() {
+        return blend(previous.sheen, active.sheen);
+    }
+
+    /**
+     * @return the color of destructive actions (a low saturation red).
+     */
+    public static int danger() {
+        return blend(previous.danger, active.danger);
+    }
+
+    /**
      * Creates a transparent variant of a color by scaling its alpha channel.
      *
      * @param argb  the source color (0xAARRGGBB).
@@ -273,6 +294,12 @@ public final class PhiTheme {
         /** The secondary text color. */
         public final int textSecondary;
 
+        /** The color of the hover sheen. */
+        public final int sheen;
+
+        /** The color of destructive actions. */
+        public final int danger;
+
         /**
          * @param level0        the deepest background level.
          * @param level1        the hub window background.
@@ -283,9 +310,11 @@ public final class PhiTheme {
          * @param accent        the accent color.
          * @param textPrimary   the primary text color.
          * @param textSecondary the secondary text color.
+         * @param sheen         the color of the hover sheen.
+         * @param danger        the color of destructive actions.
          */
         Palette(int level0, int level1, int level2, int level3, int level4, int level5,
-                int accent, int textPrimary, int textSecondary) {
+               int accent, int textPrimary, int textSecondary, int sheen, int danger) {
             this.level0 = level0;
             this.level1 = level1;
             this.level2 = level2;
@@ -295,6 +324,8 @@ public final class PhiTheme {
             this.accent = accent;
             this.textPrimary = textPrimary;
             this.textSecondary = textSecondary;
+            this.sheen = sheen;
+            this.danger = danger;
         }
     }
 }
