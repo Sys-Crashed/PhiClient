@@ -51,7 +51,7 @@ public final class BlurRenderer {
     private boolean disabled;
 
     /**
-     * Blurs the current main framebuffer once (result is written back to the main framebuffer). If any
+     * Blurs the whole main framebuffer once (result is written back to the main framebuffer). If any
      * step fails, the renderer permanently disables itself and logs only once, to avoid spamming every
      * frame / crashing the game.
      *
@@ -59,6 +59,24 @@ public final class BlurRenderer {
      * @param radius       the blur radius.
      */
     public void render(float partialTicks, float radius) {
+        ScaledResolution sr = new ScaledResolution(this.mc);
+        render(partialTicks, radius, 0.0F, 0.0F, sr.getScaledWidth(), sr.getScaledHeight());
+    }
+
+    /**
+     * Blurs only the given rectangle of the main framebuffer (result is written back). The rectangle
+     * is given in the scaled GuiScreen coordinate space; it is widened and clamped inside the shader
+     * via the {@code BlurXY / BlurCoord} region uniforms, so only the area behind a modal overlay is
+     * blurred and the rest of the frame stays untouched.
+     *
+     * @param partialTicks the render interpolation factor.
+     * @param radius       the blur radius.
+     * @param x            the left x of the region.
+     * @param y            the top y of the region.
+     * @param width        the width of the region.
+     * @param height       the height of the region.
+     */
+    public void render(float partialTicks, float radius, float x, float y, float width, float height) {
         if (this.disabled) {
             return;
         }
@@ -90,7 +108,7 @@ public final class BlurRenderer {
                 this.lastHeight = this.mc.displayHeight;
             }
 
-            applyUniforms(radius);
+            applyUniforms(radius, x, y, width, height);
 
             this.shaderGroup.loadShaderGroup(partialTicks);
 
@@ -103,21 +121,16 @@ public final class BlurRenderer {
 
     /**
      * Sets the uniforms for both passes: {@code BlurXY} is the region origin, {@code BlurCoord} is the
-     * region size (both halved to match the half-resolution blur), giving a full-screen blur.
+     * region size (both halved to match the half-resolution blur). The region is given in scaled
+     * GuiScreen coordinates; the {@code y} axis is flipped because the shader reads the framebuffer
+     * texture with its origin at the bottom left, while GuiScreen coordinates grow downwards.
      */
-    private void applyUniforms(float radius) {
+    private void applyUniforms(float radius, float x, float y, float width, float height) {
         ScaledResolution sr = new ScaledResolution(this.mc);
 
         float scale = sr.getScaleFactor();
         int scaledWidth = sr.getScaledWidth();
         int scaledHeight = sr.getScaledHeight();
-        int x = 0;
-        int y = 0;
-        int width = scaledWidth;
-        int height = scaledHeight;
-        // The formula below is intentionally identical item-by-item to the original blur implementation
-        // (even though height currently always equals scaledHeight), so the blurred region behaves
-        // stably and need not be recomputed when switching to a local blur later.
 
         List<Shader> shaders = ShaderGroupAccess.getShaders(this.shaderGroup);
         if (shaders == null) {
@@ -130,8 +143,9 @@ public final class BlurRenderer {
                 continue;
             }
 
-            setUniform(manager, "BlurXY", x * (scale / 2.0F), (scaledHeight - height) * (scale / 2.0F));
-            setUniform(manager, "BlurCoord", (width - x) * (scale / 2.0F), (height - y) * (scale / 2.0F));
+            setUniform(manager, "BlurXY", x * (scale / 2.0F),
+                    (scaledHeight - y - height) * (scale / 2.0F));
+            setUniform(manager, "BlurCoord", width * (scale / 2.0F), height * (scale / 2.0F));
             setUniform(manager, "Radius", radius);
         }
     }

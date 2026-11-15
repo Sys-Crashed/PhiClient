@@ -72,6 +72,9 @@ public class GuiPhiHub extends GuiScreen {
     /** A single mouse wheel notch is reported with this delta by LWJGL. */
     private static final float WHEEL_DELTA_PER_NOTCH = 120.0F;
 
+    /** Blur radius applied to the hub area while a modal overlay is open. */
+    private static final float MODAL_BLUR_RADIUS = 20.0F;
+
     private final Minecraft mc = Minecraft.getMinecraft();
 
     private final PhiHubLayout layout = new PhiHubLayout();
@@ -193,7 +196,9 @@ public class GuiPhiHub extends GuiScreen {
         // 1) Background blur (written back to MC's main framebuffer, covering the sharp scene).
         gui.getBlurRenderer().render(partialTicks, 1.0F + intro * 19.0F);
 
-        // 2) Draw the whole interface with NanoVG.
+        // 2) Draw the interface with NanoVG. While a modal overlay is open the hub splits into two
+        //    frames: the first draws everything below the overlay, then the overlay's region is
+        //    blurred locally, then the second frame draws the overlay (and the toast) on top.
         NanoVGManager nvg = gui.getNanoVGManager();
         if (!nvg.ensureReady()) {
             return;
@@ -201,12 +206,35 @@ public class GuiPhiHub extends GuiScreen {
 
         final int mouseXFinal = mouseX;
         final int mouseYFinal = mouseY;
-        nvg.setupAndDraw(new Runnable() {
-            @Override
-            public void run() {
-                drawHub(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
-            }
-        }, true);
+        final boolean modal = this.currentCategory.hasModalOverlay();
+
+        if (modal) {
+            nvg.setupAndDraw(new Runnable() {
+                @Override
+                public void run() {
+                    drawHubBase(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                }
+            }, true);
+
+            // Blur only the hub area (the overlay sits above it); the scene behind stays as it was.
+            gui.getBlurRenderer().render(partialTicks, MODAL_BLUR_RADIUS,
+                    this.layout.getHubX(), this.layout.getHubY(),
+                    this.layout.getHubWidth(), this.layout.getHubHeight());
+
+            nvg.setupAndDraw(new Runnable() {
+                @Override
+                public void run() {
+                    drawModalLayer(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                }
+            }, true);
+        } else {
+            nvg.setupAndDraw(new Runnable() {
+                @Override
+                public void run() {
+                    drawHub(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                }
+            }, true);
+        }
     }
 
     /**
@@ -219,14 +247,16 @@ public class GuiPhiHub extends GuiScreen {
      * @param intro        the progress of the open animation.
      */
     private void drawHub(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
-        float centerX = this.layout.getHubX() + this.layout.getHubWidth() * 0.5F;
-        float centerY = this.layout.getHubY() + this.layout.getHubHeight() * 0.5F;
-        float scale = 0.94F + 0.06F * intro;
+        drawHubBase(nvg, mouseX, mouseY, partialTicks, intro);
+        drawToast(nvg, partialTicks);
+    }
 
-        nvg.save();
-        nvg.translate(centerX, centerY);
-        nvg.scale(scale, scale);
-        nvg.translate(-centerX, -centerY);
+    /**
+     * Draws the window body, the navigation band and the active page - but not the modal overlay nor
+     * the toast. This is the first NanoVG frame of the modal path, drawn before the local blur.
+     */
+    private void drawHubBase(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
+        applyHubScale(nvg, intro);
 
         drawWindow(nvg);
 
@@ -263,8 +293,38 @@ public class GuiPhiHub extends GuiScreen {
 
         // The tooltip is drawn above everything - it may overlap the content area.
         this.navBar.drawTooltip(nvg, this.width, this.height);
+    }
 
-        // The toast confirms an action at the top of the game window.
+    /**
+     * Draws the modal overlay of the active page above everything else, then the toast. This is the
+     * second NanoVG frame of the modal path, drawn after the local blur of the background.
+     */
+    private void drawModalLayer(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
+        applyHubScale(nvg, intro);
+        this.currentCategory.drawOverlayLayer(nvg, mouseX, mouseY, partialTicks);
+        nvg.restore();
+
+        drawToast(nvg, partialTicks);
+    }
+
+    /**
+     * Applies the open / close scale of the hub (the window shrinks a little while it animates).
+     */
+    private void applyHubScale(NanoVGManager nvg, float intro) {
+        float centerX = this.layout.getHubX() + this.layout.getHubWidth() * 0.5F;
+        float centerY = this.layout.getHubY() + this.layout.getHubHeight() * 0.5F;
+        float scale = 0.94F + 0.06F * intro;
+
+        nvg.save();
+        nvg.translate(centerX, centerY);
+        nvg.scale(scale, scale);
+        nvg.translate(-centerX, -centerY);
+    }
+
+    /**
+     * Draws the toast on top of everything (it may confirm an action of the page or of the overlay).
+     */
+    private void drawToast(NanoVGManager nvg, float partialTicks) {
         PhiToast toast = PhiClient.getInstance().getGuiManager().getToast();
 
         // Music imports (dialog and drag-and-drop) report their outcome here.

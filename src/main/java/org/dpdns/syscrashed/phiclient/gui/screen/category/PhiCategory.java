@@ -145,6 +145,26 @@ public abstract class PhiCategory {
     }
 
     /**
+     * @return true when the page currently shows a modal overlay that must be drawn above every
+     *         other element (the navigation band included) and blurred behind by the hub.
+     */
+    public boolean hasModalOverlay() {
+        return false;
+    }
+
+    /**
+     * Draws the modal overlay of the page above every other element. The hub calls this only when
+     * {@link #hasModalOverlay()} returns true, after it has blurred the background behind the modal.
+     *
+     * @param nvg          the NanoVG drawing context.
+     * @param mouseX       the pointer x.
+     * @param mouseY       the pointer y.
+     * @param partialTicks the render interpolation factor.
+     */
+    public void drawOverlayLayer(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+    }
+
+    /**
      * Forwards a click to every component of the page.
      *
      * @param mouseX      the click x.
