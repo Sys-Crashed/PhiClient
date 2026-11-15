@@ -10,12 +10,11 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * (package {@code org.dpdns.syscrashed.phiclient.gui.util}).
  *
  * <p>The sheen replaces the former circular reveal. It is drawn in the sheared coordinate system of
- * the shape, where both the shape and the highlight band are rounded rectangles. A band end is
- * either a full shape-radius corner or a round capsule head, so it never protrudes with sharp
- * corners, and the gradients fade out exactly at the shape edges. The two gradient halves meet on
- * one straight seam, forming a single continuous band with no corner gap at its centre. A sweep
- * that has already started always plays to the end, so a pointer that only passes over a component
- * still produces visible feedback.</p>
+ * the shape, where the highlight band is filled through the rounded path of the shape itself and
+ * clipped to its two gradient halves by scissor rectangles. The band therefore follows the rounded
+ * corners of the shape exactly - no sharp corners, no corner gaps, no spill into the corner
+ * cut-outs - while it sweeps across the full width. A sweep that has already started always plays
+ * to the end, so a pointer that only passes over a component still produces visible feedback.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -116,12 +115,13 @@ public final class PhiSheen {
      * that is transparent at both ends and brightest at its centre. The band travels horizontally;
      * the shear turns its vertical sides into edges parallel to the slanted sides of the shape.
      *
-     * <p>The visible part of the band spans the whole shape and its two gradient halves are two
-     * paths that meet on one straight seam (zero corner radius there) - a scissor would be clipped
-     * through the sheared transform and cut a visible wedge out of the centre. A band end is either
-     * a full shape-radius corner or a round capsule head (half the band width), never a protruding
-     * sharp corner, and the gradients end exactly at the clamped band edges, so the band always
-     * fades out at the shape edge.</p>
+     * <p>Both halves are filled through the rounded path of the shape itself, so the band always
+     * stays inside the shape: its ends follow the corner arcs exactly (no sharp corners, no spill
+     * into the corner gaps) while it sweeps across the full width. The halves are separated by
+     * scissor rectangles: {@code nvgScissor} transforms only the two diagonal corners of the
+     * rectangle, so under the shear its bounding box loses {@code SLOPE * height} on the right
+     * edge; extending each scissor by that amount keeps both halves flush on one seam at the
+     * centre and at the band ends.</p>
      */
     private static void drawBand(NanoVGManager nvg, float width, float height, float radius,
                                  float sweep, int color) {
@@ -139,20 +139,23 @@ public final class PhiSheen {
         int transparent = PhiTheme.withAlpha(color, 0.0F);
         int bright = PhiTheme.withAlpha(color, SHEEN_ALPHA);
 
-        float cap = Math.min(radius, (right - left) * 0.5F);
         float mid = Math.max(left, Math.min(right, center));
+        float shear = PhiSkew.SLOPE * height;
 
         // Leading half: transparent at the band start, bright at the centre.
         if (mid - left > 0.01F) {
             nvg.beginPath();
-            nvg.addRoundedRectVarying(left, 0.0F, mid - left, height, cap, 0.0F, 0.0F, cap);
+            nvg.addRoundedRect(0.0F, 0.0F, width, height, radius);
+            nvg.scissor(left, 0.0F, mid - left + shear, height);
             nvg.fillPathGradient(transparent, bright, left, 0.0F, mid, 0.0F);
         }
         // Trailing half: bright at the centre, transparent at the band end.
         if (right - mid > 0.01F) {
             nvg.beginPath();
-            nvg.addRoundedRectVarying(mid, 0.0F, right - mid, height, 0.0F, cap, cap, 0.0F);
+            nvg.addRoundedRect(0.0F, 0.0F, width, height, radius);
+            nvg.scissor(mid, 0.0F, right - mid + shear, height);
             nvg.fillPathGradient(bright, transparent, mid, 0.0F, right, 0.0F);
         }
+        nvg.resetScissor();
     }
 }
