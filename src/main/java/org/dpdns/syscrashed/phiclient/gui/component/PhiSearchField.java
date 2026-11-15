@@ -33,6 +33,15 @@ public class PhiSearchField extends PhiComponent {
         void onChanged(String text);
     }
 
+    /** Receives the text when the editing ends (return key or loss of focus). */
+    public interface SubmitListener {
+
+        /**
+         * @param text the text of the field at the moment the editing ended.
+         */
+        void onSubmit(String text);
+    }
+
     private final float uiScale;
 
     private final StringBuilder text = new StringBuilder();
@@ -41,7 +50,11 @@ public class PhiSearchField extends PhiComponent {
 
     private ChangeListener listener;
 
+    private SubmitListener submitListener;
+
     private boolean focused;
+
+    private boolean showIcon = true;
 
     /**
      * @param x       the left x of the bounding box.
@@ -63,10 +76,26 @@ public class PhiSearchField extends PhiComponent {
     }
 
     /**
+     * Shows or hides the search icon. A field that is used as a plain name input has no icon.
+     *
+     * @param showIcon whether the search icon is drawn.
+     */
+    public void setShowIcon(boolean showIcon) {
+        this.showIcon = showIcon;
+    }
+
+    /**
      * @param listener the change callback.
      */
     public void setChangeListener(ChangeListener listener) {
         this.listener = listener;
+    }
+
+    /**
+     * @param listener the callback for the finished editing.
+     */
+    public void setSubmitListener(SubmitListener listener) {
+        this.submitListener = listener;
     }
 
     /**
@@ -99,7 +128,12 @@ public class PhiSearchField extends PhiComponent {
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
         boolean inside = isInside(mouseX, mouseY);
         if (mouseButton == 0) {
+            boolean wasFocused = this.focused;
             this.focused = inside;
+            if (wasFocused && !inside) {
+                // The editing ended by clicking somewhere else: the text is confirmed.
+                notifySubmit();
+            }
         }
     }
 
@@ -109,7 +143,13 @@ public class PhiSearchField extends PhiComponent {
             return;
         }
 
-        if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_ESCAPE) {
+        if (keyCode == Keyboard.KEY_RETURN) {
+            this.focused = false;
+            notifySubmit();
+            return;
+        }
+
+        if (keyCode == Keyboard.KEY_ESCAPE) {
             this.focused = false;
             return;
         }
@@ -143,10 +183,11 @@ public class PhiSearchField extends PhiComponent {
         float contentLeft = PhiSkew.contentLeft(this.x, this.height, padding);
         float contentRight = PhiSkew.contentRight(this.x, this.width, padding);
 
-        // The search icon sits at the right end of the field.
+        // The search icon sits at the right end of the field (a plain name field has none).
         float iconSize = this.height * 0.52F;
         float iconX = contentRight - iconSize * 0.5F;
-        float textWidth = Math.max(0.0F, contentRight - contentLeft - iconSize - padding * 0.5F);
+        float iconSpace = this.showIcon ? iconSize + padding * 0.5F : 0.0F;
+        float textWidth = Math.max(0.0F, contentRight - contentLeft - iconSpace);
         float textY = this.y + (this.height - bodySize) * 0.5F;
 
         if (this.text.length() == 0 && !this.focused) {
@@ -173,8 +214,10 @@ public class PhiSearchField extends PhiComponent {
             }
         }
 
-        PhiIcons.SEARCH.draw(nvg, iconX, this.y + this.height * 0.5F, iconSize,
-                this.focused ? PhiTheme.accent() : PhiTheme.textSecondary());
+        if (this.showIcon) {
+            PhiIcons.SEARCH.draw(nvg, iconX, this.y + this.height * 0.5F, iconSize,
+                    this.focused ? PhiTheme.accent() : PhiTheme.textSecondary());
+        }
     }
 
     /**
@@ -183,6 +226,15 @@ public class PhiSearchField extends PhiComponent {
     private void notifyChanged() {
         if (this.listener != null) {
             this.listener.onChanged(getText());
+        }
+    }
+
+    /**
+     * Pushes the finished text to the submit listener.
+     */
+    private void notifySubmit() {
+        if (this.submitListener != null) {
+            this.submitListener.onSubmit(getText());
         }
     }
 }

@@ -102,9 +102,15 @@ public class PhiTooltip {
         float height = PhiMetrics.TOOLTIP_HEIGHT * uiScale;
         float gap = PhiMetrics.TOOLTIP_GAP * uiScale;
         float travel = PhiMetrics.TOOLTIP_OFFSET_Y * uiScale * (1.0F - this.progress);
-        float width = nvg.textWidth(this.text, fontSize, Fonts.REGULAR) + padding * 2.0F;
 
         float margin = SCREEN_MARGIN * uiScale;
+
+        // The tooltip never grows beyond the game window: the text is cut off instead of the
+        // box leaving the screen. The slanted shape needs its own offset on the right side.
+        float maxWidth = Math.max(60.0F * uiScale,
+                screenWidth - margin * 2.0F - PhiSkew.offset(height) - padding * 2.0F);
+        float width = Math.min(nvg.textWidth(this.text, fontSize, Fonts.REGULAR) + padding * 2.0F,
+                maxWidth);
 
         // The tooltip is placed to the right of the icon and vertically centered on it.
         float left = anchorX + gap;
@@ -122,8 +128,10 @@ public class PhiTooltip {
                 PhiTheme.withAlpha(PhiTheme.level5(), this.progress));
 
         float textY = top + (height - fontSize) * 0.5F - fontSize * 0.08F;
-        float textX = PhiSkew.leftEdgeAt(left, top, height, textY) + padding;
-        nvg.drawText(this.text, textX, textY, PhiTheme.withAlpha(PhiTheme.textPrimary(), this.progress),
+        float textX = PhiSkew.contentLeft(left, height, padding);
+        float textWidth = PhiSkew.contentRight(left, width, padding) - textX;
+        nvg.drawText(nvg.limitText(this.text, fontSize, Fonts.REGULAR, textWidth),
+                textX, textY, PhiTheme.withAlpha(PhiTheme.textPrimary(), this.progress),
                 fontSize, Fonts.REGULAR);
     }
 

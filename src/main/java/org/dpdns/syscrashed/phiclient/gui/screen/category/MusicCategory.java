@@ -179,9 +179,11 @@ public class MusicCategory extends PhiCategory {
         this.cardsSignature = "";
         rebuildCards();
 
-        // The overlay is centered on the list and is the only input target while open.
-        this.overlay = new PhiPlaylistOverlay(listX + (listRight - listX) * 0.10F, listTop,
-                (listRight - listX) * 0.80F, listHeight, s);
+        // The overlay is centered on the song list: the content rectangle of the panel shares the
+        // center of the list content and uses almost the whole width of the list.
+        float overlayWidth = (listRight - listX) * 0.94F;
+        float overlayX = (listX + listRight - PhiSkew.offset(listHeight) - overlayWidth) * 0.5F;
+        this.overlay = new PhiPlaylistOverlay(overlayX, listTop, overlayWidth, listHeight, s);
         this.overlay.setListener(new OverlayListener());
         this.overlayVisible = false;
     }
@@ -653,18 +655,12 @@ public class MusicCategory extends PhiCategory {
                 return;
             }
             String trimmed = name.trim();
-            if (MusicCategory.this.overlay.getMode() == PhiPlaylistOverlay.Mode.MANAGE) {
-                if (MusicCategory.this.manager.renamePlaylist(MusicCategory.this.manageTarget, trimmed)) {
-                    MusicCategory.this.manageTarget = trimmed;
-                    MusicCategory.this.overlay.showManage(trimmed,
-                            MusicCategory.this.manager.getLibrary().getEffectiveTracks(
-                                    LibraryView.PLAYLIST, trimmed));
-                }
-            } else {
-                if (MusicCategory.this.manager.createPlaylist(trimmed)) {
-                    MusicCategory.this.manager.addToPlaylist(trimmed, MusicCategory.this.pickTrackId);
-                    MusicCategory.this.overlayVisible = false;
-                }
+            if (MusicCategory.this.overlay.getMode() == PhiPlaylistOverlay.Mode.MANAGE
+                    && MusicCategory.this.manager.renamePlaylist(MusicCategory.this.manageTarget, trimmed)) {
+                MusicCategory.this.manageTarget = trimmed;
+                MusicCategory.this.overlay.showManage(trimmed,
+                        MusicCategory.this.manager.getLibrary().getEffectiveTracks(
+                                LibraryView.PLAYLIST, trimmed));
             }
         }
 
