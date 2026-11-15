@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.dpdns.syscrashed.phiclient.gui.component.shape.PhiRoundedSquareShape;
+import org.dpdns.syscrashed.phiclient.gui.layout.PhiSkew;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 
 /**
@@ -12,8 +13,10 @@ import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
  *
  * <p>The list has no visible scrollbar: the wheel adds velocity to the scroll offset, the velocity
  * decays by 0.92 per frame and the offset springs back at the borders. Only the rows inside the
- * viewport are drawn (clipped by a scissor), so long libraries stay cheap. The rows keep their x
- * anchor while scrolling - only their y moves - so the skewed cards never drift sideways.</p>
+ * viewport are drawn (clipped by a scissor), so long libraries stay cheap. The list scrolls along
+ * the diagonal of the hub (like the change log): one pixel up also moves a card {@link PhiSkew#SLOPE}
+ * pixels to the right, so the cards stay flush against the slanted left edge instead of drifting
+ * sideways.</p>
  *
  * <p>The owner builds the {@link PhiSongCard} rows and hands them over with {@link #setCards(List)};
  * the list only positions and draws them and forwards the mouse events (the cards are already at
@@ -99,17 +102,28 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         advance();
 
+        // The visible area is the slanted band between the left and right edge of the hub, not the
+        // axis aligned viewport: a card near the bottom leans further left. The scissor is therefore
+        // expressed in the sheared coordinate system, exactly like the change log list.
         nvg.save();
-        nvg.scissor(this.x - 1.0F, this.y, this.width + 2.0F + this.height * 0.30F, this.height);
+        nvg.translate(this.x, this.y);
+        nvg.skewX(PhiSkew.SHEAR_DEGREES);
+        nvg.scissor(0.0F, 0.0F, this.width, this.height);
+        nvg.skewX(-PhiSkew.SHEAR_DEGREES);
+        nvg.translate(-this.x, -this.y);
 
         float stride = this.rowHeight + this.rowGap;
+        float slide = PhiSkew.SLOPE * this.scroll;
         for (int i = 0; i < this.cards.size(); i++) {
             float rowY = this.y + i * stride - this.scroll;
             if (rowY + this.rowHeight < this.y || rowY > this.y + this.height) {
                 continue; // outside the viewport
             }
             PhiSongCard card = this.cards.get(i);
-            // Only y moves with the scroll; the x anchor is fixed, so the skew never drifts.
+            // The x anchor is measured at the un-scrolled row position and slides along the diagonal
+            // with the scroll offset, so a card always stays flush against the slanted left edge.
+            float rowX = this.x + PhiSkew.SLOPE * (this.scroll - i * stride);
+            card.setX(rowX);
             card.setY(rowY);
             card.draw(nvg, mouseX, mouseY, partialTicks);
         }
@@ -119,15 +133,32 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
 
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouseButton) {
-        for (PhiSongCard card : this.cards) {
-            card.mouseClicked(mouseX, mouseY, mouseButton);
-        }
+        forwardClick(mouseX, mouseY, mouseButton, false);
     }
 
     @Override
     public void mouseReleased(int mouseX, int mouseY, int mouseButton) {
-        for (PhiSongCard card : this.cards) {
-            card.mouseReleased(mouseX, mouseY, mouseButton);
+        forwardClick(mouseX, mouseY, mouseButton, true);
+    }
+
+    /**
+     * Forwards a mouse event to the visible cards only. The hit boxes of the cards follow their
+     * scrolled position, so the rows outside the viewport must be skipped - their stale coordinates
+     * would otherwise swallow the click.
+     */
+    private void forwardClick(int mouseX, int mouseY, int mouseButton, boolean release) {
+        float stride = this.rowHeight + this.rowGap;
+        for (int i = 0; i < this.cards.size(); i++) {
+            float rowY = this.y + i * stride - this.scroll;
+            if (rowY + this.rowHeight < this.y || rowY > this.y + this.height) {
+                continue; // outside the viewport
+            }
+            PhiSongCard card = this.cards.get(i);
+            if (release) {
+                card.mouseReleased(mouseX, mouseY, mouseButton);
+            } else {
+                card.mouseClicked(mouseX, mouseY, mouseButton);
+            }
         }
     }
 
