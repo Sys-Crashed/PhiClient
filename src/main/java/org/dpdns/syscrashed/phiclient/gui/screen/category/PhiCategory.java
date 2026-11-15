@@ -153,6 +153,17 @@ public abstract class PhiCategory {
     }
 
     /**
+     * The eased entrance progress of the current modal overlay in the range {@code [0, 1]}. The hub
+     * uses it to fade the background blur in and out together with the overlay. Pages without a
+     * modal overlay return 0.
+     *
+     * @return the eased modal progress (0 when no overlay is visible).
+     */
+    public float getModalProgress() {
+        return 0.0F;
+    }
+
+    /**
      * Draws the modal overlay of the page above every other element. The hub calls this only when
      * {@link #hasModalOverlay()} returns true, after it has blurred the background behind the modal.
      *

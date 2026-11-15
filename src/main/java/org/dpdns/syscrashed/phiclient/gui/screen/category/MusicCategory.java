@@ -64,6 +64,9 @@ public class MusicCategory extends PhiCategory {
     /** Share of the hub area the playlist dialog covers (the dialog is self-adaptive). */
     private static final float DIALOG_AREA_RATIO = 0.35F;
 
+    /** Duration of the overlay entrance and exit (matches the hub intro animation). */
+    private static final float OVERLAY_ANIMATION_MS = 260.0F;
+
     private final PhiMusicManager manager = PhiMusicManager.get();
 
     private PhiSearchField searchField;
@@ -368,12 +371,14 @@ public class MusicCategory extends PhiCategory {
         long now = System.currentTimeMillis();
         float deltaMs = Math.min(100.0F, now - this.lastFrame);
         this.lastFrame = now;
+        // The overlay visibility is a linear time progress; the eased value drives the entrance,
+        // the background blur and the exit symmetrically (260 ms, like the hub intro).
         this.overlayVisibility = this.overlayVisible
-                ? Math.min(1.0F, this.overlayVisibility + deltaMs / 160.0F)
-                : Math.max(0.0F, this.overlayVisibility - deltaMs / 140.0F);
+                ? Math.min(1.0F, this.overlayVisibility + deltaMs / OVERLAY_ANIMATION_MS)
+                : Math.max(0.0F, this.overlayVisibility - deltaMs / OVERLAY_ANIMATION_MS);
         this.confirmVisibility = this.confirmVisible
-                ? Math.min(1.0F, this.confirmVisibility + deltaMs / 160.0F)
-                : Math.max(0.0F, this.confirmVisibility - deltaMs / 140.0F);
+                ? Math.min(1.0F, this.confirmVisibility + deltaMs / OVERLAY_ANIMATION_MS)
+                : Math.max(0.0F, this.confirmVisibility - deltaMs / OVERLAY_ANIMATION_MS);
 
         // Sync the live state into the widgets.
         this.tabBar.setSelection(this.manager.getView(), this.manager.getPlaylistName());
@@ -420,6 +425,11 @@ public class MusicCategory extends PhiCategory {
     }
 
     @Override
+    public float getModalProgress() {
+        return Math.max(ease(this.overlayVisibility), ease(this.confirmVisibility));
+    }
+
+    @Override
     public void drawOverlayLayer(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         if (this.overlayVisible || this.overlayVisibility > 0.001F) {
             drawOverlayFade(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
@@ -430,19 +440,40 @@ public class MusicCategory extends PhiCategory {
     }
 
     /**
-     * Draws an overlay with a short alpha fade only. No scale is applied: a scale transform shifts the
-     * drawn geometry away from the un-transformed pointer position, which is what used to make the
-     * hover highlight land next to the cursor.
+     * @return the easeOutCubic of a linear visibility progress (the curve of the hub intro).
      */
-    private static void drawOverlayFade(NanoVGManager nvg, PhiComponent overlay, float visibility,
-                                        int mouseX, int mouseY, float partialTicks) {
+    private static float ease(float value) {
+        float v = Math.max(0.0F, Math.min(1.0F, value));
+        float inverse = 1.0F - v;
+        return 1.0F - inverse * inverse * inverse;
+    }
+
+    /**
+     * Draws an overlay with the same entrance as the hub window: it eases in with a small scale-up
+     * (0.94 to 1.0), slides up by {@code 38 * uiScale} and fades in, all driven by the same eased
+     * progress that also drives the background blur. The exit plays the same curve backwards.
+     */
+    private void drawOverlayFade(NanoVGManager nvg, PhiComponent overlay, float visibility,
+                                 int mouseX, int mouseY, float partialTicks) {
         float value = Math.max(0.0F, Math.min(1.0F, visibility));
-        float inverse = 1.0F - value;
-        float eased = 1.0F - inverse * inverse * inverse;
+        float eased = ease(value);
+        float scale = 0.94F + 0.06F * eased;
+        float centerX = overlay.getX() + overlay.getWidth() * 0.5F;
+        float centerY = overlay.getY() + overlay.getHeight() * 0.5F;
+        float shift = (1.0F - eased) * 38.0F * this.uiScale;
 
         nvg.save();
+        nvg.translate(centerX, centerY);
+        nvg.scale(scale, scale);
+        nvg.translate(-centerX, -centerY);
+        nvg.translate(0.0F, shift);
         nvg.setGlobalAlpha(eased);
-        overlay.draw(nvg, mouseX, mouseY, partialTicks);
+
+        // The entrance scales and shifts the drawn geometry, so the un-transformed pointer would not
+        // match the hover shape. Freeze the hover until the overlay settled (the hub intro does the
+        // same); once settled the geometry is back at its laid-out position and hover works again.
+        boolean settled = value >= 1.0F;
+        overlay.draw(nvg, settled ? mouseX : -1, settled ? mouseY : -1, partialTicks);
         nvg.restore();
     }
 

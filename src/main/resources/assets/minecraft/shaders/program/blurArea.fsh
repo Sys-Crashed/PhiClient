@@ -45,34 +45,43 @@ float SCurve (float x) {
 
 vec4 BlurH (sampler2D source, vec2 size, vec2 uv, float radius) {
 
-    if (uv.x / oneTexel.x >= BlurXY.x * 2 && uv.y / oneTexel.y >= BlurXY.y * 2 && uv.x / oneTexel.x <= (BlurCoord.x + BlurXY.x) * 2 && uv.y / oneTexel.y <= (BlurCoord.y + BlurXY.y) * 2)
+    vec2 pixel = uv / oneTexel;
+    vec2 regionMin = BlurXY * 2.0;
+    vec2 regionMax = (BlurXY + BlurCoord) * 2.0;
+
+    // Signed distance to the blur region in half-resolution pixels: negative inside, positive
+    // outside. The mask feathers the edge, so the blur does not start with a hard rectangular seam.
+    vec2 d = max(regionMin - pixel, pixel - regionMax);
+    float dist = max(d.x, d.y);
+    float feather = 24.0;
+    float mask = 1.0 - smoothstep(0.0, feather, dist);
+
+    if (mask <= 0.0)
     {
-        vec4 A = vec4(0.0);
-        vec4 C = vec4(0.0);
-
-        float divisor = 0.0;
-        float weight = 0.0;
-
-        float radiusMultiplier = 1.0 / radius;
-
-        // Hardcoded for radius 20 (normally we input the radius
-        // in there), needs to be literal here
-
-        for (float x = -radius; x <= radius; x++)
-        {
-            A = texture2D(source, uv + vec2(x * size) * BlurDir);
-
-            weight = SCurve(1.0 - (abs(x) * radiusMultiplier));
-
-            C += A * weight;
-
-            divisor += weight;
-        }
-
-        return vec4(C.r / divisor, C.g / divisor, C.b / divisor, 1.0);
+        return texture2D(source, uv);
     }
 
-    return texture2D(source, uv);
+    vec4 A = vec4(0.0);
+    vec4 C = vec4(0.0);
+
+    float divisor = 0.0;
+    float weight = 0.0;
+
+    float radiusMultiplier = 1.0 / radius;
+
+    for (float x = -radius; x <= radius; x++)
+    {
+        A = texture2D(source, uv + vec2(x * size) * BlurDir);
+
+        weight = SCurve(1.0 - (abs(x) * radiusMultiplier));
+
+        C += A * weight;
+
+        divisor += weight;
+    }
+
+    vec4 blurred = vec4(C.r / divisor, C.g / divisor, C.b / divisor, 1.0);
+    return mix(texture2D(source, uv), blurred, mask);
 }
 
 void main() {

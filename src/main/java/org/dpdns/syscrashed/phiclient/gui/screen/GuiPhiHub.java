@@ -188,8 +188,15 @@ public class GuiPhiHub extends GuiScreen {
         this.layout.update(this.mc.displayWidth, this.mc.displayHeight, this.width, this.height, deltaMs);
         updateLayout();
 
+        // While a modal overlay is open the content below it must not react to the pointer: the
+        // overlay owns the input, so the navigation band and the page are updated with an
+        // off-screen pointer and keep no hover highlight.
+        final boolean modal = this.currentCategory.hasModalOverlay();
+        final int contentMouseX = modal ? -1 : mouseX;
+        final int contentMouseY = modal ? -1 : mouseY;
+
         this.navBar.layout(this.layout);
-        this.navBar.update(mouseX, mouseY, deltaMs);
+        this.navBar.update(contentMouseX, contentMouseY, deltaMs);
 
         float intro = (float) Math.min(1.0D, this.introAnimation.getValue());
 
@@ -206,20 +213,19 @@ public class GuiPhiHub extends GuiScreen {
 
         final int mouseXFinal = mouseX;
         final int mouseYFinal = mouseY;
-        final boolean modal = this.currentCategory.hasModalOverlay();
 
         if (modal) {
             nvg.setupAndDraw(new Runnable() {
                 @Override
                 public void run() {
-                    drawHubBase(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                    drawHubBase(nvg, contentMouseX, contentMouseY, partialTicks, intro);
                 }
             }, true);
 
-            // Blur only the hub area (the overlay sits above it); the scene behind stays as it was.
-            gui.getBlurRenderer().render(partialTicks, MODAL_BLUR_RADIUS,
-                    this.layout.getHubX(), this.layout.getHubY(),
-                    this.layout.getHubWidth(), this.layout.getHubHeight());
+            // The modal mask covers the whole frame: the blur fades in with the overlay entrance
+            // (and out again on exit), so the entire background softens instead of a small block.
+            gui.getBlurRenderer().render(partialTicks,
+                    MODAL_BLUR_RADIUS * this.currentCategory.getModalProgress());
 
             nvg.setupAndDraw(new Runnable() {
                 @Override

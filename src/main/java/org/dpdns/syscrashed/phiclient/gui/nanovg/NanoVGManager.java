@@ -287,9 +287,19 @@ public final class NanoVGManager {
         NanoVG.nvgRotate(this.context, (float) Math.toRadians(degrees));
     }
 
-    /** Sets a scissor rectangle (clips subsequent drawing). */
+    /** Sets a scissor rectangle (clips subsequent drawing, replacing any previous scissor). */
     public void scissor(float x, float y, float width, float height) {
         NanoVG.nvgScissor(this.context, x, y, width, height);
+    }
+
+    /**
+     * Intersects the current scissor with the given rectangle instead of replacing it. Used by
+     * nested clipped drawing (for example the hover sheen inside a clipped list row): the inner
+     * clip must never widen the clip the caller already set, or the drawing would spill out of the
+     * viewport.
+     */
+    public void intersectScissor(float x, float y, float width, float height) {
+        NanoVG.nvgIntersectScissor(this.context, x, y, width, height);
     }
 
     /** Removes the scissor rectangle. */

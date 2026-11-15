@@ -28,6 +28,9 @@ import net.minecraft.client.shader.ShaderGroup;
  */
 final class ShaderGroupAccess {
 
+    /** Logs the reflection failure only once (the lookup runs every frame while a blur is shown). */
+    private static boolean warned;
+
     private ShaderGroupAccess() {
     }
 
@@ -68,7 +71,10 @@ final class ShaderGroupAccess {
             }
         }
 
-        PhiLogger.warn("Could not locate the shader list inside ShaderGroup; blur uniforms are skipped.");
+        if (!warned) {
+            warned = true;
+            PhiLogger.warn("Could not locate the shader list inside ShaderGroup; blur region uniforms are skipped, so the blur falls back to the full frame.");
+        }
         return null;
     }
 }

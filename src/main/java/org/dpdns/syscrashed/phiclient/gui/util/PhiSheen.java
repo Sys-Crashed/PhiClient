@@ -121,7 +121,9 @@ public final class PhiSheen {
      * scissor rectangles: {@code nvgScissor} transforms only the two diagonal corners of the
      * rectangle, so under the shear its bounding box loses {@code SLOPE * height} on the right
      * edge; extending each scissor by that amount keeps both halves flush on one seam at the
-     * centre and at the band ends.</p>
+     * centre and at the band ends. Each half intersects its scissor with the clip the caller
+     * already set (a list viewport, the window), so the sheen never spills out of that outer
+     * clip; the per-half save/restore keeps the two intersections independent.</p>
      */
     private static void drawBand(NanoVGManager nvg, float width, float height, float radius,
                                  float sweep, int color) {
@@ -144,18 +146,21 @@ public final class PhiSheen {
 
         // Leading half: transparent at the band start, bright at the centre.
         if (mid - left > 0.01F) {
+            nvg.save();
             nvg.beginPath();
             nvg.addRoundedRect(0.0F, 0.0F, width, height, radius);
-            nvg.scissor(left, 0.0F, mid - left + shear, height);
+            nvg.intersectScissor(left, 0.0F, mid - left + shear, height);
             nvg.fillPathGradient(transparent, bright, left, 0.0F, mid, 0.0F);
+            nvg.restore();
         }
         // Trailing half: bright at the centre, transparent at the band end.
         if (right - mid > 0.01F) {
+            nvg.save();
             nvg.beginPath();
             nvg.addRoundedRect(0.0F, 0.0F, width, height, radius);
-            nvg.scissor(mid, 0.0F, right - mid + shear, height);
+            nvg.intersectScissor(mid, 0.0F, right - mid + shear, height);
             nvg.fillPathGradient(bright, transparent, mid, 0.0F, right, 0.0F);
+            nvg.restore();
         }
-        nvg.resetScissor();
     }
 }
