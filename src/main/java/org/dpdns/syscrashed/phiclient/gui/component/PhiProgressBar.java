@@ -50,8 +50,17 @@ public class PhiProgressBar extends PhiComponent {
     /** The ratio the user is currently dragging to. */
     private float dragRatio;
 
+    /** The ratio the bar keeps showing after the drag, until the engine applied the seek. */
+    private float heldRatio = -1.0F;
+
+    /** The moment the held ratio may be dropped (the engine did not apply the seek in time). */
+    private long heldUntil;
+
     /** Smoothly keeps the drag feedback visible after the pointer leaves the bar. */
     private float dragAmount;
+
+    /** How long the bar keeps the position of a pending seek before it gives up. */
+    private static final long HOLD_TIMEOUT_MS = 2000L;
 
     private long lastFrame;
 
@@ -112,6 +121,22 @@ public class PhiProgressBar extends PhiComponent {
         }
     }
 
+    /**
+     * Holds a ratio on the bar. The owner uses it to show the position of a pending seek while the
+     * engine applies it: the engine debounces the seek, so the playback position would jump back to
+     * the old one for a moment if the bar followed it right away.
+     *
+     * @param ratio the ratio to hold, or a negative value when no seek is pending any more.
+     */
+    public void setHeldRatio(float ratio) {
+        if (ratio >= 0.0F) {
+            this.heldRatio = ratio;
+            this.heldUntil = System.currentTimeMillis() + HOLD_TIMEOUT_MS;
+        } else {
+            this.heldRatio = -1.0F;
+        }
+    }
+
     @Override
     public void draw(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         updateHover(mouseX, mouseY);
@@ -134,7 +159,7 @@ public class PhiProgressBar extends PhiComponent {
 
         float feedback = Math.max(getHoverProgress(), this.dragAmount);
         float radius = Math.min(this.height * 0.5F, PhiMetrics.CORNER_RADIUS * this.uiScale);
-        float shown = this.dragging ? this.dragRatio : this.progress;
+        float shown = getShownProgress();
 
         // Remaining part.
         nvg.drawRoundedRect(this.x, this.y, this.width, this.height, radius,
@@ -156,6 +181,25 @@ public class PhiProgressBar extends PhiComponent {
                     handleWidth, handleHeight, handleWidth * 0.5F,
                     PhiTheme.withAlpha(PhiTheme.accent(), feedback));
         }
+    }
+
+    /**
+     * @return the progress the bar displays: the dragged position while the user drags, the position
+     *         of a pending seek until the engine applied it, otherwise the playback position.
+     */
+    public float getShownProgress() {
+        if (this.dragging) {
+            return this.dragRatio;
+        }
+        if (this.heldRatio >= 0.0F) {
+            if (System.currentTimeMillis() > this.heldUntil) {
+                // The engine never applied the seek: fall back to the playback position.
+                this.heldRatio = -1.0F;
+            } else {
+                return this.heldRatio;
+            }
+        }
+        return this.progress;
     }
 
     /**

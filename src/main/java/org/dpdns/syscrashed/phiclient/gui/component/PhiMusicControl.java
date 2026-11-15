@@ -208,14 +208,22 @@ public class PhiMusicControl extends PhiComponent {
 
         float timeY = barY - (timeSize - barHeight) * 0.5F - timeSize * 0.08F;
 
-        nvg.drawTextAligned(formatTime(this.player.getPositionSeconds()), contentLeft + timeSlot, timeY,
+        float duration = this.player.getDurationSeconds();
+        float position = this.player.getPositionSeconds();
+        float pendingSeek = this.player.getPendingSeekRatio();
+        if (pendingSeek >= 0.0F) {
+            position = pendingSeek * duration;
+        }
+
+        nvg.drawTextAligned(formatTime(position), contentLeft + timeSlot, timeY,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
                 PhiTheme.textSecondary(), timeSize, Fonts.REGULAR);
 
-        nvg.drawText(formatTime(this.player.getDurationSeconds()), barRight + timeGap, timeY,
+        nvg.drawText(formatTime(duration), barRight + timeGap, timeY,
                 PhiTheme.textSecondary(), timeSize, Fonts.REGULAR);
 
         // Transport buttons, the button of the repository and the progress bar.
+        this.progressBar.setHeldRatio(pendingSeek);
         this.progressBar.setProgress(this.player.getProgress());
         this.playFeedback.setStateTarget(this.player.isPlaying() ? 1.0F : 0.0F);
         this.playButton.setHighlighted(this.player.isPlaying());

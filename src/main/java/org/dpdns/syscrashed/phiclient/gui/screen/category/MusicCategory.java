@@ -517,6 +517,10 @@ public class MusicCategory extends PhiCategory {
                 coverY + titleSize * 1.30F, PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);
 
         // Progress + time labels (the widgets themselves are components, drawn by super.draw).
+        // While a seek is pending the bar keeps showing the requested position, so the time label
+        // has to show the same position - otherwise the bar and the clock disagree.
+        float pendingSeek = this.manager.getPendingSeekRatio();
+        this.progressBar.setHeldRatio(pendingSeek);
         this.progressBar.setProgress(this.manager.getProgress());
         this.playFeedback.setStateTarget(player.isPlaying() ? 1.0F : 0.0F);
         this.playButton.setHighlighted(player.isPlaying());
@@ -531,11 +535,17 @@ public class MusicCategory extends PhiCategory {
         this.progressBar.setX(contentLeft + timeSlot + timeGap);
         this.progressBar.setWidth(Math.max(10.0F, contentRight - contentLeft - (timeSlot + timeGap) * 2.0F));
 
-        nvg.drawTextAligned(formatTime(player.getPositionSeconds()), contentLeft + timeSlot,
+        float duration = player.getDurationSeconds();
+        float position = player.getPositionSeconds();
+        if (pendingSeek >= 0.0F) {
+            position = pendingSeek * duration;
+        }
+
+        nvg.drawTextAligned(formatTime(position), contentLeft + timeSlot,
                 trackY - (timeSize - this.progressBar.getHeight()) * 0.5F,
                 NanoVG.NVG_ALIGN_RIGHT | NanoVG.NVG_ALIGN_TOP,
                 PhiTheme.textSecondary(), timeSize, Fonts.REGULAR);
-        nvg.drawText(formatTime(player.getDurationSeconds()),
+        nvg.drawText(formatTime(duration),
                 contentRight - timeSlot, trackY - (timeSize - this.progressBar.getHeight()) * 0.5F,
                 PhiTheme.textSecondary(), timeSize, Fonts.REGULAR);
     }

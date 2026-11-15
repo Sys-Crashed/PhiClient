@@ -407,6 +407,15 @@ public class PhiMusicPlayer {
     }
 
     /**
+     * @return the ratio of the seek that the engine has not applied yet in the range {@code [0, 1]},
+     *         or -1 when no seek is pending. The interface keeps showing the pending position until
+     *         the engine applied it.
+     */
+    public float getPendingSeekRatio() {
+        return this.pendingSeekRatio;
+    }
+
+    /**
      * @return the elapsed time of the current track in seconds.
      */
     public float getPositionSeconds() {

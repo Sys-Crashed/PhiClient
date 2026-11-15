@@ -83,6 +83,11 @@ public class PhiSongCard extends PhiComponent {
     private float deleteHover;
     private long lastFrame = System.currentTimeMillis();
 
+    /** The vertical bounds of the part of the row that the list actually shows. */
+    private float visibleTop = Float.NEGATIVE_INFINITY;
+
+    private float visibleBottom = Float.POSITIVE_INFINITY;
+
     /** The control that owns the current press animation: 1 play, 2 favorite, 3 add, 4 delete. */
     private int pressedControl;
 
@@ -125,6 +130,37 @@ public class PhiSongCard extends PhiComponent {
      */
     public void setPlaying(boolean playing) {
         this.playing = playing;
+    }
+
+    /**
+     * Limits the hit test of the row to the part of it that the list really shows. The list clips
+     * its rows, so the pointer must not reach the hidden part of a row - it lies behind the control
+     * bar of the music page and would trigger the row although nothing of it is visible.
+     *
+     * @param top    the top of the visible part.
+     * @param bottom the bottom of the visible part.
+     */
+    public void setVisibleBounds(float top, float bottom) {
+        this.visibleTop = top;
+        this.visibleBottom = bottom;
+    }
+
+    /**
+     * Clears the hover state of a row that left the viewport: it is not drawn any more, so it must
+     * neither keep its highlight nor its tooltip.
+     */
+    public void clearHover() {
+        setHovered(false);
+    }
+
+    @Override
+    protected void updateHover(int mouseX, int mouseY) {
+        super.updateHover(mouseX, mouseY);
+
+        // Only the visible part of the row can be hovered.
+        if (isHovered() && (mouseY < this.visibleTop || mouseY > this.visibleBottom)) {
+            setHovered(false);
+        }
     }
 
     @Override

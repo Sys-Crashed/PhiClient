@@ -413,7 +413,8 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         nvg.translate(-this.x, -this.y);
 
         if (this.rows.isEmpty()) {
-            String empty = PhiI18n.get(this.mode == Mode.ADD ? "music.playlist.empty" : "music.empty");
+            String empty = PhiI18n.get(this.mode == Mode.ADD ? "music.playlist.empty"
+                    : "music.playlist.tracks.empty");
             nvg.drawTextCentered(empty, this.x + this.width * 0.5F + PhiSkew.offset(this.height) * 0.5F,
                     this.listTop + (this.listBottom - this.listTop) * 0.4F,
                     PhiTheme.textSecondary(), bodySize, Fonts.REGULAR);

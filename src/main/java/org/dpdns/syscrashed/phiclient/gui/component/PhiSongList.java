@@ -121,13 +121,17 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
         float slide = PhiSkew.SLOPE * this.scroll;
         for (int i = 0; i < this.cards.size(); i++) {
             float rowY = this.y + i * stride - this.scroll;
+            PhiSongCard card = this.cards.get(i);
             if (rowY + this.rowHeight < this.y || rowY > this.y + this.height) {
+                card.clearHover();
                 continue; // outside the viewport
             }
-            PhiSongCard card = this.cards.get(i);
             // The x anchor is measured at the un-scrolled row position and slides along the diagonal
             // with the scroll offset, so a card always stays flush against the slanted left edge.
             float rowX = this.x + PhiSkew.SLOPE * (this.scroll - i * stride);
+            // Only the visible part of the row can be reached by the pointer.
+            card.setVisibleBounds(Math.max(rowY, this.y),
+                    Math.min(rowY + this.rowHeight, this.y + this.height));
             card.setX(rowX);
             card.setY(rowY);
             card.draw(nvg, mouseX, mouseY, partialTicks);
@@ -157,6 +161,12 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
             float rowY = this.y + i * stride - this.scroll;
             if (rowY + this.rowHeight < this.y || rowY > this.y + this.height) {
                 continue; // outside the viewport
+            }
+            // Only the visible part of a row can be clicked: the rest of it is hidden behind the
+            // control bar of the music page and must not react to the pointer.
+            if (mouseY < Math.max(rowY, this.y)
+                    || mouseY > Math.min(rowY + this.rowHeight, this.y + this.height)) {
+                continue;
             }
             PhiSongCard card = this.cards.get(i);
             if (release) {

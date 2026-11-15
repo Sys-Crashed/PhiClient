@@ -213,6 +213,14 @@ public final class PhiMusicManager {
     }
 
     /**
+     * @return the ratio of the seek that the engine has not applied yet, or -1 when no seek is
+     *         pending.
+     */
+    public float getPendingSeekRatio() {
+        return this.player.getPendingSeekRatio();
+    }
+
+    /**
      * Sets the playback volume.
      *
      * @param percent the volume in percent {@code [0, 100]} (clamped).
