@@ -10,11 +10,12 @@ import org.dpdns.syscrashed.phiclient.gui.theme.PhiTheme;
  * (package {@code org.dpdns.syscrashed.phiclient.gui.util}).
  *
  * <p>The sheen replaces the former circular reveal. It is drawn in the sheared coordinate system of
- * the shape, where both the shape and the highlight band are rounded rectangles with the same corner
- * radius. The band is one single rounded path; its two gradient halves are separated by scissor
- * rectangles, so the band has no corner gap at its centre and no protruding sharp corners. A sweep
- * that has already started always plays to the end, so a pointer that only passes over a component
- * still produces visible feedback.</p>
+ * the shape, where both the shape and the highlight band are rounded rectangles. A band end resting
+ * on the edge of the shape takes the corner radius of the shape itself, so it never protrudes with
+ * sharp corners; free ends cap themselves at half the band width. The band is one single rounded
+ * path; its two gradient halves are separated by scissor rectangles, so the band has no corner gap
+ * at its centre. A sweep that has already started always plays to the end, so a pointer that only
+ * passes over a component still produces visible feedback.</p>
  *
  * <p>Provided methods:</p>
  * <ul>
@@ -115,10 +116,12 @@ public final class PhiSheen {
      * that is transparent at both ends and brightest at its centre. The band travels horizontally;
      * the shear turns its vertical sides into edges parallel to the slanted sides of the shape.
      *
-     * <p>The band is one single rounded path (same corner radius as the shape, so it never protrudes
-     * with sharp corners and never opens a gap at its centre). The two gradient halves are separated
-     * by scissor rectangles instead of two half paths; the gradients keep their unclipped end points
-     * so the brightness curve does not change at the shape edges.</p>
+     * <p>The band is one single rounded path. A band end that rests on the edge of the shape takes
+     * the corner radius of the shape itself, so it follows the rounded corners without protruding
+     * sharp points; a free end is limited to half the band width so its two corners do not meet.
+     * The two gradient halves are separated by scissor rectangles instead of two half paths; the
+     * gradients keep their unclipped end points so the brightness curve does not change at the
+     * shape edges.</p>
      */
     private static void drawBand(NanoVGManager nvg, float width, float height, float radius,
                                  float sweep, int color) {
@@ -138,11 +141,20 @@ public final class PhiSheen {
         int transparent = PhiTheme.withAlpha(color, 0.0F);
         int bright = PhiTheme.withAlpha(color, SHEEN_ALPHA);
 
-        float halfRadius = Math.min(radius, (right - left) * 0.5F);
+        float capRadius = Math.min(radius, (right - left) * 0.5F);
+        float startRadius = left <= 0.01F ? radius : capRadius;
+        float endRadius = right >= width - 0.01F ? radius : capRadius;
         float mid = Math.max(left, Math.min(right, center));
 
         nvg.beginPath();
-        nvg.addRoundedRect(left, 0.0F, right - left, height, halfRadius);
+        nvg.addRoundedRectVarying(left, 0.0F, right - left, height,
+                startRadius, endRadius, endRadius, startRadius);
+
+        // A scissor set in the sheared frame is clipped to the axis aligned bounding box of the
+        // transformed rectangle, which grows by SLOPE * height in the sheared frame. The trailing
+        // half shifts its scissor right by that amount so both halves stay flush on the same
+        // slanted seam, with neither a gap nor a double-bright overlap at the centre.
+        float shear = PhiSkew.SLOPE * height;
 
         // Leading half: transparent at the band start, bright at the centre.
         if (mid - left > 0.01F) {
@@ -150,8 +162,8 @@ public final class PhiSheen {
             nvg.fillPathGradient(transparent, bright, bandLeft, 0.0F, center, 0.0F);
         }
         // Trailing half: bright at the centre, transparent at the band end.
-        if (right - mid > 0.01F) {
-            nvg.scissor(mid, 0.0F, right - mid, height);
+        if (right - mid - shear > 0.01F) {
+            nvg.scissor(mid + shear, 0.0F, right - mid - shear, height);
             nvg.fillPathGradient(bright, transparent, center, 0.0F, bandRight, 0.0F);
         }
         nvg.resetScissor();

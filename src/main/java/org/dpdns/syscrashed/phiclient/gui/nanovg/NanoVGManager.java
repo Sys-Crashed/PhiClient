@@ -391,6 +391,26 @@ public final class NanoVGManager {
         NanoVG.nvgRoundedRect(this.context, x, y, width, height, radius);
     }
 
+    /**
+     * Appends a rounded rectangle with an individual radius for every corner to the current path.
+     * The rectangle is <b>not</b> filled - use it together with {@link #fillPath(int)} or
+     * {@link #fillPathGradient(int, int, float, float, float, float)} to draw it.
+     *
+     * @param x           the left x of the rectangle.
+     * @param y           the top y of the rectangle.
+     * @param width       the width of the rectangle.
+     * @param height      the height of the rectangle.
+     * @param topLeft     the radius of the top left corner.
+     * @param topRight    the radius of the top right corner.
+     * @param bottomRight the radius of the bottom right corner.
+     * @param bottomLeft  the radius of the bottom left corner.
+     */
+    public void addRoundedRectVarying(float x, float y, float width, float height,
+                                      float topLeft, float topRight, float bottomRight, float bottomLeft) {
+        NanoVG.nvgRoundedRectVarying(this.context, x, y, width, height,
+                topLeft, topRight, bottomRight, bottomLeft);
+    }
+
     /** Appends an arc (circle segment) to the current path. */
     public void arc(float centerX, float centerY, float radius, float startAngle, float endAngle, int direction) {
         NanoVG.nvgArc(this.context, centerX, centerY, radius, startAngle, endAngle, direction);
