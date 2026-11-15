@@ -3,6 +3,7 @@ package org.dpdns.syscrashed.phiclient;
 import org.dpdns.syscrashed.phiclient.compat.lwjgl.Lwjgl3NativeInstaller;
 import org.dpdns.syscrashed.phiclient.compat.optifine.OptiFineCompat;
 import org.dpdns.syscrashed.phiclient.gui.PhiGuiManager;
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicManager;
 import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.i18n.PhiLanguageConfig;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
@@ -116,6 +117,10 @@ public final class PhiClient {
         running = false;
 
         guiManager.shutdown();
+
+        // Music: release the decoder process and the audio line (tick-driven stop only covers the
+        // main menu, this is the net for a shutdown that skips it).
+        PhiMusicManager.get().stopAndRelease();
 
         // Best-effort persistence: setLanguage already saves on every switch; this is the safety
         // net for a shutdown that skipped a switch (and future config state).

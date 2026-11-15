@@ -11,6 +11,8 @@ import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
+import javax.sound.sampled.FloatControl;
+import javax.sound.sampled.Line;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
@@ -98,6 +100,9 @@ public final class PhiAudioDecoder {
     private long totalFrames;
 
     private volatile boolean ended;
+
+    /** The playback volume as a linear gain in {@code [0, 1]} (1 = unchanged). */
+    private float volume = 1.0F;
 
     /**
      * Creates a decoder and resolves the bundled ffmpeg executable, if present.
@@ -283,6 +288,7 @@ public final class PhiAudioDecoder {
             this.clipMode = true;
             this.totalFrames = newClip.getMicrosecondLength() * SAMPLE_RATE / 1000000L;
             this.positionFrames = newClip.getMicrosecondPosition() * SAMPLE_RATE / 1000000L;
+            applyVolume();
             return true;
         } catch (Throwable t) {
             PhiLogger.error("PhiAudioDecoder - cannot play " + file.getName(), t);
@@ -323,10 +329,53 @@ public final class PhiAudioDecoder {
         this.ended = false;
         newLine.start();
         this.totalFrames = readTotalFrames(file);
+        applyVolume();
 
         startDrainThread(newProcess);
         startDecodeThread(newProcess, newLine);
         return true;
+    }
+
+    /**
+     * Sets the playback volume of the current stream.
+     *
+     * @param linear the volume as a linear gain in {@code [0, 1]} (1 = unchanged, 0 = muted).
+     */
+    public void setVolume(float linear) {
+        this.volume = Math.max(0.0F, Math.min(1.0F, linear));
+        applyVolume();
+    }
+
+    /**
+     * Applies the stored volume to the active line (best effort - the master gain control may not
+     * exist on every platform, in which case the volume stays at the system level).
+     */
+    private void applyVolume() {
+        if (this.clip != null) {
+            applyGain(this.clip, this.volume);
+        } else if (this.line != null) {
+            applyGain(this.line, this.volume);
+        }
+    }
+
+    /**
+     * Maps a linear gain to the master gain control of a line.
+     *
+     * @param line   the line to control.
+     * @param linear the linear gain in {@code [0, 1]}.
+     */
+    private static void applyGain(Line line, float linear) {
+        if (line == null || !line.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+            return;
+        }
+        FloatControl control = (FloatControl) line.getControl(FloatControl.Type.MASTER_GAIN);
+        float decibels;
+        if (linear <= 0.0001F) {
+            decibels = control.getMinimum();
+        } else {
+            decibels = 20.0F * (float) Math.log10(linear);
+        }
+        control.setValue(Math.max(control.getMinimum(), Math.min(control.getMaximum(), decibels)));
     }
 
     /**
@@ -450,9 +499,9 @@ public final class PhiAudioDecoder {
     /**
      * Checks once whether an ffmpeg binary can actually run, and caches the result.
      *
-     * @return true when ffmpeg is usable.
+     * @return true when ffmpeg is usable (and therefore every format it understands can play).
      */
-    private boolean isFfmpegAvailable() {
+    public boolean isFfmpegAvailable() {
         Boolean cached = ffmpegWorks;
         if (cached != null) {
             return cached.booleanValue();

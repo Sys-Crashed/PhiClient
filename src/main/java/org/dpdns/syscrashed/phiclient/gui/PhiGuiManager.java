@@ -1,5 +1,6 @@
 package org.dpdns.syscrashed.phiclient.gui;
 
+import org.dpdns.syscrashed.phiclient.gui.music.PhiMusicManager;
 import org.dpdns.syscrashed.phiclient.gui.nanovg.NanoVGManager;
 import org.dpdns.syscrashed.phiclient.gui.render.BlurRenderer;
 import org.dpdns.syscrashed.phiclient.gui.screen.GuiPhiHub;
@@ -10,6 +11,7 @@ import org.dpdns.syscrashed.phiclient.management.event.impl.EventTick;
 import org.lwjgl.input.Keyboard;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.settings.KeyBinding;
 
 /**
@@ -95,6 +97,14 @@ public final class PhiGuiManager {
         }
 
         rightShiftDown = down;
+
+        // Music playback is driven per tick so it survives closing the hub; returning to the
+        // main menu stops and releases it (the hub itself does not).
+        PhiMusicManager music = PhiMusicManager.get();
+        if (this.mc.currentScreen instanceof GuiMainMenu) {
+            music.stopAndRelease();
+        }
+        music.update();
     }
 
     /**
