@@ -59,6 +59,15 @@ music.empty=曲がありません。右下の + で追加してください
 music.search.empty=一致する曲がありません
 music.import.title=音楽のインポート
 music.import.result=%d 曲を追加、%d 曲をスキップしました
+music.import.conflict=重複した曲: %s
+music.import.conflict.overwrite=上書き
+music.import.conflict.cancel=キャンセル
+music.playlist.play=プレイリストを再生
+music.track.delete=曲を削除
+music.track.delete.title=曲を削除
+music.track.delete.confirm=この曲をディスクから削除しますか？元に戻せません。
+music.confirm.yes=確認
+music.confirm.no=キャンセル
 
 # Settings page
 settings.theme.title=テーマ

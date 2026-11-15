@@ -59,6 +59,15 @@ music.empty=还没有歌曲，点击右下角 + 导入
 music.search.empty=没有匹配的歌曲
 music.import.title=音乐导入
 music.import.result=已导入 %d 首，跳过 %d 首
+music.import.conflict=检测到重复曲目：%s
+music.import.conflict.overwrite=覆盖
+music.import.conflict.cancel=取消
+music.playlist.play=播放歌单
+music.track.delete=删除歌曲
+music.track.delete.title=删除歌曲
+music.track.delete.confirm=确定要从磁盘删除这首歌曲吗？此操作不可恢复。
+music.confirm.yes=确认
+music.confirm.no=取消
 
 # Settings page
 settings.theme.title=主题
