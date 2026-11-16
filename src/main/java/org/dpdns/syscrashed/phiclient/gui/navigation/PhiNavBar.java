@@ -247,7 +247,9 @@ public class PhiNavBar {
 
             // A sheen sweeps along the slanted axis, then a faint tint marks the hover. A press
             // flashes the accent. The entry keeps its feedback while the tint fades out.
-            if (i == this.revealIndex && this.hoverAmount > 0.001F) {
+            // The sweep plays to the end even when the pointer only passed over the entry: the tint
+            // fades out with the hover, but the band must not stop halfway.
+            if (i == this.revealIndex && (this.hoverAmount > 0.001F || this.sheen.isSweeping())) {
                 int revealColor = (i == this.pressedIndex)
                         ? PhiTheme.accent()
                         : (isSelected ? PhiTheme.mix(PhiTheme.level5(), PhiTheme.accent(), 0.45F) : PhiTheme.level4());

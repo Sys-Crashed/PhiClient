@@ -405,16 +405,16 @@ public class MusicCategory extends PhiCategory {
 
         drawControlBar(nvg);
 
-        // Empty state of the list, centered on the visual centre of the slanted content area (the
-        // centroid of the parallelogram, like the empty text of the playlist dialog).
+        // Empty state of the list, centered on the content band: the mid point between its two
+        // slanted edges at the vertical centre of the viewport. (The bounding box of the list is
+        // not the band - the band leans to the left towards the bottom.)
         if (this.cards.isEmpty()) {
             String empty = this.manager.getTracks().isEmpty()
                     ? PhiI18n.get("music.empty") : PhiI18n.get("music.search.empty");
             float textSize = PhiMetrics.FONT_BODY * this.uiScale;
-            float centerX = this.songList.getX() + this.songList.getWidth() * 0.5F
-                    + PhiSkew.offset(this.songList.getHeight()) * 0.5F;
-            float centerY = this.songList.getY() + this.songList.getHeight() * 0.5F;
-            nvg.drawTextAligned(empty, centerX, centerY,
+            float midY = this.songList.getY() + this.songList.getHeight() * 0.5F;
+            float centerX = (layout.getBandInnerEdgeXAt(midY) + layout.getRightEdgeXAt(midY)) * 0.5F;
+            nvg.drawTextAligned(empty, centerX, midY,
                     NanoVG.NVG_ALIGN_CENTER | NanoVG.NVG_ALIGN_MIDDLE,
                     PhiTheme.textSecondary(), textSize, Fonts.REGULAR);
         }
@@ -438,6 +438,20 @@ public class MusicCategory extends PhiCategory {
         if (this.overlayVisible || this.overlayVisibility > 0.001F) {
             drawOverlayFade(nvg, this.overlay, this.overlayVisibility, mouseX, mouseY, partialTicks);
         }
+    }
+
+    @Override
+    public boolean hasSecondaryOverlay() {
+        return this.confirmVisible || this.confirmVisibility > 0.001F;
+    }
+
+    @Override
+    public float getSecondaryProgress() {
+        return ease(this.confirmVisibility);
+    }
+
+    @Override
+    public void drawSecondaryOverlay(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
         if (this.confirmVisible || this.confirmVisibility > 0.001F) {
             drawOverlayFade(nvg, this.confirmOverlay, this.confirmVisibility, mouseX, mouseY, partialTicks);
         }
@@ -845,14 +859,10 @@ public class MusicCategory extends PhiCategory {
     private final class SongListener implements PhiSongCard.ActionListener {
         @Override
         public void onPlay(PhiSongCard card) {
-            List<PhiTrack> tracks = MusicCategory.this.manager.getTracks();
-            String id = card.getTrack().getId();
-            for (int i = 0; i < tracks.size(); i++) {
-                if (tracks.get(i).getId().equals(id)) {
-                    MusicCategory.this.manager.getPlayer().playIndex(i);
-                    return;
-                }
-            }
+            // Bind the playback queue to the view the card belongs to, then play that track.
+            // Playing by the index of the previewed list would keep the queue of the view that was
+            // playing before and start its next song instead of the clicked one.
+            MusicCategory.this.manager.playTrack(card.getTrack().getId());
         }
 
         @Override

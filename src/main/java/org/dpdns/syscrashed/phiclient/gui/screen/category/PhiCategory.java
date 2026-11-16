@@ -176,6 +176,36 @@ public abstract class PhiCategory {
     }
 
     /**
+     * @return true when a second dialog sits on top of the modal overlay (for example the delete
+     *         confirmation on top of the manage playlist dialog). The hub then blurs the overlay
+     *         itself before drawing the second dialog, so the whole background softens - the UI of
+     *         the first dialog included.
+     */
+    public boolean hasSecondaryOverlay() {
+        return false;
+    }
+
+    /**
+     * @return the eased entrance progress of the secondary overlay in the range {@code [0, 1]},
+     *         used to fade its background blur in and out.
+     */
+    public float getSecondaryProgress() {
+        return 0.0F;
+    }
+
+    /**
+     * Draws the secondary overlay (a dialog on top of the modal overlay). The hub calls this after
+     * it has blurred the frame that already contains the modal overlay.
+     *
+     * @param nvg          the NanoVG drawing context.
+     * @param mouseX       the pointer x.
+     * @param mouseY       the pointer y.
+     * @param partialTicks the render interpolation factor.
+     */
+    public void drawSecondaryOverlay(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks) {
+    }
+
+    /**
      * Forwards a click to every component of the page.
      *
      * @param mouseX      the click x.

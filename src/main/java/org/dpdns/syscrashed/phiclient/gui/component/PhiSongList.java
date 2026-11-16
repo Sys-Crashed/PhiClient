@@ -41,6 +41,15 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
 
     private float velocity;
 
+    /** Duration of the eased wheel step in milliseconds. */
+    private static final long WHEEL_ANIMATION_MS = 180L;
+
+    /** The start of the running wheel glide (0 = no glide). */
+    private long animStart;
+
+    private float animFrom;
+    private float animTo;
+
     /**
      * @param x       the left x of the viewport.
      * @param y       the top y of the viewport.
@@ -92,11 +101,15 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        // One wheel notch moves a fixed two rows and stops the inertia. The old velocity-based
-        // scroll accumulated ~12.5 rows per notch, so rows flew past and could not be selected.
-        this.scroll += notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH * (this.rowHeight + this.rowGap);
+        // One wheel notch glides a fixed two rows with a CubicOut ease (a predictable step, so
+        // every row can be selected). A notch while the glide runs accumulates onto its target.
+        float stride = this.rowHeight + this.rowGap;
+        float base = this.animStart != 0L ? this.animTo : this.scroll;
+        this.animFrom = this.scroll;
+        this.animTo = Math.max(0.0F, Math.min(maxScroll(),
+                base + notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH * stride));
+        this.animStart = System.currentTimeMillis();
         this.velocity = 0.0F;
-        clampScroll();
         return true;
     }
 
@@ -187,14 +200,26 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
      * Advances the inertia and the border bounce by one frame.
      */
     private void advance() {
+        if (this.animStart != 0L) {
+            // The eased wheel glide owns the scroll offset until it has finished.
+            float t = Math.min(1.0F,
+                    (System.currentTimeMillis() - this.animStart) / (float) WHEEL_ANIMATION_MS);
+            float eased = 1.0F - (float) Math.pow(1.0F - t, 3.0D);
+            this.scroll = this.animFrom + (this.animTo - this.animFrom) * eased;
+            this.velocity = 0.0F;
+            if (t >= 1.0F) {
+                this.animStart = 0L;
+            }
+            return;
+        }
+
         this.scroll += this.velocity;
         this.velocity *= FRICTION;
         if (Math.abs(this.velocity) < 0.05F) {
             this.velocity = 0.0F;
         }
 
-        float maxScroll = Math.max(0.0F, this.cards.size() * (this.rowHeight + this.rowGap)
-                - this.rowGap - this.height);
+        float maxScroll = maxScroll();
         if (this.scroll > maxScroll) {
             this.scroll += (maxScroll - this.scroll) * BOUNCE;
             this.velocity = 0.0F;
@@ -205,12 +230,19 @@ public class PhiSongList extends PhiComponent implements PhiScrollable {
     }
 
     /**
+     * @return the maximum scroll offset (0 when every row fits into the viewport).
+     */
+    private float maxScroll() {
+        return Math.max(0.0F, this.cards.size() * (this.rowHeight + this.rowGap)
+                - this.rowGap - this.height);
+    }
+
+    /**
      * Clamps the scroll offset into the valid range (used after the rows changed).
      */
     private void clampScroll() {
-        float maxScroll = Math.max(0.0F, this.cards.size() * (this.rowHeight + this.rowGap)
-                - this.rowGap - this.height);
-        this.scroll = Math.max(0.0F, Math.min(this.scroll, maxScroll));
+        this.scroll = Math.max(0.0F, Math.min(this.scroll, maxScroll()));
         this.velocity = 0.0F;
+        this.animStart = 0L;
     }
 }

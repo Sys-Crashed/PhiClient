@@ -11,6 +11,8 @@ import org.dpdns.syscrashed.phiclient.i18n.PhiI18n;
 import org.dpdns.syscrashed.phiclient.logger.PhiLogger;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.SoundCategory;
+import net.minecraft.client.settings.GameSettings;
 
 /**
  * The music playback engine of the client (package {@code org.dpdns.syscrashed.phiclient.gui.music}).
@@ -61,6 +63,14 @@ public class PhiMusicPlayer {
     private PlayMode playMode = PlayMode.SEQUENTIAL_LOOP;
 
     private float volume = 1.0F;
+
+    /**
+     * The Minecraft music volume saved before it was silenced, or -1 when the game music is
+     * untouched. While PhiClient plays its own music the in-game soundtrack would mix into the
+     * track, so the game music volume is forced to 0 for the duration of the playback and restored
+     * when the playback pauses or stops.
+     */
+    private float previousGameMusicVolume = -1.0F;
 
     /** True once the track list is injected from outside - disables the self-scan. */
     private boolean managed;
@@ -276,6 +286,7 @@ public class PhiMusicPlayer {
             // The track is already loaded - just continue where it stopped.
             this.decoder.resume();
             this.playing = true;
+            muteGameMusic();
             return;
         }
 
@@ -288,6 +299,7 @@ public class PhiMusicPlayer {
     public void pause() {
         this.decoder.pause();
         this.playing = false;
+        restoreGameMusic();
     }
 
     /**
@@ -386,9 +398,11 @@ public class PhiMusicPlayer {
         if (this.decoder.open(track, 0L)) {
             this.decoder.setVolume(this.volume);
             this.playing = true;
+            muteGameMusic();
         } else {
             PhiLogger.error("PhiMusicPlayer - cannot play the track " + track.getName());
             this.playing = false;
+            restoreGameMusic();
         }
     }
 
@@ -516,6 +530,31 @@ public class PhiMusicPlayer {
     public void stopAndRelease() {
         this.playing = false;
         this.decoder.close();
+        restoreGameMusic();
+    }
+
+    /**
+     * Silences the Minecraft background music for the duration of the PhiClient playback. The
+     * player's own music volume is remembered and restored by {@link #restoreGameMusic()}.
+     */
+    private void muteGameMusic() {
+        if (this.previousGameMusicVolume >= 0.0F) {
+            return;
+        }
+        GameSettings settings = Minecraft.getMinecraft().gameSettings;
+        this.previousGameMusicVolume = settings.getSoundLevel(SoundCategory.MUSIC);
+        settings.setSoundLevel(SoundCategory.MUSIC, 0.0F);
+    }
+
+    /**
+     * Restores the Minecraft music volume that {@link #muteGameMusic()} remembered.
+     */
+    private void restoreGameMusic() {
+        if (this.previousGameMusicVolume < 0.0F) {
+            return;
+        }
+        Minecraft.getMinecraft().gameSettings.setSoundLevel(SoundCategory.MUSIC, this.previousGameMusicVolume);
+        this.previousGameMusicVolume = -1.0F;
     }
 
     /**

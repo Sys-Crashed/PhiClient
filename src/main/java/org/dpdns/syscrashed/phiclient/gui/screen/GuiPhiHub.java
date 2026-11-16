@@ -230,7 +230,28 @@ public class GuiPhiHub extends GuiScreen {
             nvg.setupAndDraw(new Runnable() {
                 @Override
                 public void run() {
-                    drawModalLayer(nvg, mouseXFinal, mouseYFinal, partialTicks, intro);
+                    drawOverlayFrame(nvg, mouseXFinal, mouseYFinal, partialTicks, intro, false);
+                }
+            }, true);
+
+            // A second dialog on top of the overlay (the delete confirmation) blurs the frame that
+            // already contains the overlay, so the whole background softens - the UI of the first
+            // dialog included.
+            if (this.currentCategory.hasSecondaryOverlay()) {
+                gui.getBlurRenderer().render(partialTicks,
+                        MODAL_BLUR_RADIUS * this.currentCategory.getSecondaryProgress());
+                nvg.setupAndDraw(new Runnable() {
+                    @Override
+                    public void run() {
+                        drawOverlayFrame(nvg, mouseXFinal, mouseYFinal, partialTicks, intro, true);
+                    }
+                }, true);
+            }
+
+            nvg.setupAndDraw(new Runnable() {
+                @Override
+                public void run() {
+                    drawToast(nvg, partialTicks);
                 }
             }, true);
         } else {
@@ -302,15 +323,19 @@ public class GuiPhiHub extends GuiScreen {
     }
 
     /**
-     * Draws the modal overlay of the active page above everything else, then the toast. This is the
-     * second NanoVG frame of the modal path, drawn after the local blur of the background.
+     * Draws one overlay frame of the modal path: the modal overlay, or the secondary dialog on top
+     * of it. The hub blurs the frame before each of them, so the second dialog also softens the
+     * first one. The toast is drawn in its own frame afterwards.
      */
-    private void drawModalLayer(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks, float intro) {
+    private void drawOverlayFrame(NanoVGManager nvg, int mouseX, int mouseY, float partialTicks,
+                                  float intro, boolean secondary) {
         applyHubScale(nvg, intro);
-        this.currentCategory.drawOverlayLayer(nvg, mouseX, mouseY, partialTicks);
+        if (secondary) {
+            this.currentCategory.drawSecondaryOverlay(nvg, mouseX, mouseY, partialTicks);
+        } else {
+            this.currentCategory.drawOverlayLayer(nvg, mouseX, mouseY, partialTicks);
+        }
         nvg.restore();
-
-        drawToast(nvg, partialTicks);
     }
 
     /**

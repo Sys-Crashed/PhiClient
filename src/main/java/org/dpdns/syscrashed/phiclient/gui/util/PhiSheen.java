@@ -61,6 +61,15 @@ public final class PhiSheen {
     }
 
     /**
+     * @return whether a sweep is still playing. The band keeps drawing until the sweep has played
+     *         to the end, even when the hover tint has already faded out - a pointer that only
+     *         passes over the component must not stop the sweep halfway.
+     */
+    public boolean isSweeping() {
+        return getSweep() < 1.0F;
+    }
+
+    /**
      * Draws the hover feedback of a parallelogram of the global shape.
      *
      * @param nvg    the NanoVG drawing context.

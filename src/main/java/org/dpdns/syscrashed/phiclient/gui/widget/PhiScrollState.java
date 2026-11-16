@@ -31,6 +31,15 @@ public class PhiScrollState {
     private float offset;
     private float velocity;
 
+    /** Duration of the eased wheel step in milliseconds. */
+    private static final long WHEEL_ANIMATION_MS = 180L;
+
+    /** The start of the running wheel glide (0 = no glide). */
+    private long animStart;
+
+    private float animFrom;
+    private float animTo;
+
     private float contentHeight;
     private float viewportHeight;
 
@@ -72,6 +81,7 @@ public class PhiScrollState {
      * @param delta the scroll distance in pixels.
      */
     public void scrollBy(float delta) {
+        this.animStart = 0L;
         float target = this.offset + delta;
 
         if (target < this.minOffset || target > getMaxOffset()) {
@@ -84,12 +94,28 @@ public class PhiScrollState {
     }
 
     /**
+     * Scrolls by the given delta with a CubicOut ease: the list glides to its new position instead
+     * of jumping there. A wheel notch while the glide runs accumulates onto the running target, so
+     * quick successive notches chain into one smooth movement.
+     *
+     * @param delta the scroll distance in pixels.
+     */
+    public void wheelStep(float delta) {
+        float base = this.animStart != 0L ? this.animTo : this.offset;
+        this.animFrom = this.offset;
+        this.animTo = clamp(base + delta, this.minOffset, getMaxOffset());
+        this.animStart = System.currentTimeMillis();
+        this.velocity = 0.0F;
+    }
+
+    /**
      * Moves the scroll position directly to the given offset and stops the inertia. It is used by
      * snap animations, which control the offset of a dial style list frame by frame.
      *
      * @param offset the new scroll offset, clamped to the valid range.
      */
     public void setOffset(float offset) {
+        this.animStart = 0L;
         this.offset = clamp(offset, this.minOffset, getMaxOffset());
         this.velocity = 0.0F;
     }
@@ -100,6 +126,19 @@ public class PhiScrollState {
      * @param deltaMs the time in milliseconds since the previous frame.
      */
     public void update(float deltaMs) {
+        if (this.animStart != 0L) {
+            // The eased wheel glide owns the offset until it has finished.
+            float t = Math.min(1.0F,
+                    (System.currentTimeMillis() - this.animStart) / (float) WHEEL_ANIMATION_MS);
+            float eased = 1.0F - (float) Math.pow(1.0F - t, 3.0D);
+            this.offset = this.animFrom + (this.animTo - this.animFrom) * eased;
+            this.velocity = 0.0F;
+            if (t >= 1.0F) {
+                this.animStart = 0L;
+            }
+            return;
+        }
+
         float frames = Math.max(0.0F, deltaMs) / 16.6667F;
 
         if (this.offset < this.minOffset || this.offset > getMaxOffset()) {
@@ -148,6 +187,7 @@ public class PhiScrollState {
      * Resets the scroll position and the inertia.
      */
     public void reset() {
+        this.animStart = 0L;
         this.offset = 0.0F;
         this.velocity = 0.0F;
     }

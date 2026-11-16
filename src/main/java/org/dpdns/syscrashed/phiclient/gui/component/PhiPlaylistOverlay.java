@@ -293,12 +293,13 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
         if (!isInside(mouseX, mouseY)) {
             return false;
         }
-        // One wheel notch moves a fixed two rows. scrollBy sets a velocity that the inertia then
-        // amplifies ~12.5x, so a single notch used to fly past a dozen rows; setOffset applies the
-        // step directly and stops the inertia, so every row can be selected.
-        float stride = (PhiMetrics.SONG_ROW_HEIGHT + PhiMetrics.SONG_ROW_SPACING) * this.uiScale;
-        float step = notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH * stride;
-        this.scrollState.setOffset(this.scrollState.getOffset() + step);
+        // One wheel notch glides a fixed two rows with a CubicOut ease, so the movement is smooth
+        // and predictable and every row can be selected. The step uses the row height of the mode.
+        float rowH = (this.mode == Mode.MANAGE
+                ? PhiMetrics.MANAGE_ROW_HEIGHT : PhiMetrics.SONG_ROW_HEIGHT) * this.uiScale;
+        float step = notches * PhiMetrics.WHEEL_ROWS_PER_NOTCH
+                * (rowH + PhiMetrics.SONG_ROW_SPACING * this.uiScale);
+        this.scrollState.wheelStep(step);
         return true;
     }
 
@@ -367,7 +368,9 @@ public class PhiPlaylistOverlay extends PhiComponent implements PhiScrollable {
 
         // The row list, clipped to the panel. The rows use the same metrics as the library list of
         // the music page, so both lists share one relaxed rhythm.
-        this.rowHeight = PhiMetrics.SONG_ROW_HEIGHT * this.uiScale;
+        // The manage dialog is a dense track list, so its rows are lower than the library rows.
+        this.rowHeight = (this.mode == Mode.MANAGE
+                ? PhiMetrics.MANAGE_ROW_HEIGHT : PhiMetrics.SONG_ROW_HEIGHT) * this.uiScale;
         this.rowGap = PhiMetrics.SONG_ROW_SPACING * this.uiScale;
         this.listTop = fieldY + (this.mode == Mode.CREATE || this.mode == Mode.MANAGE
                 ? fieldHeight + padding * 0.6F : padding * 0.4F);
